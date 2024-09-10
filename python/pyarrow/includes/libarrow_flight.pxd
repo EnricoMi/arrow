@@ -19,7 +19,6 @@
 
 from pyarrow.includes.common cimport *
 from pyarrow.includes.libarrow cimport *
-from pyarrow.includes.libarrow_python cimport CTimePoint
 
 
 cdef extern from "arrow/flight/api.h" namespace "arrow" nogil:
@@ -130,12 +129,16 @@ cdef extern from "arrow/flight/api.h" namespace "arrow" nogil:
         @staticmethod
         CResult[CLocation] ForGrpcUnix(const c_string& path)
 
+    cdef cppclass CTimestamp" arrow::flight::Timestamp":
+        pass
+
     cdef cppclass CFlightEndpoint" arrow::flight::FlightEndpoint":
         CFlightEndpoint()
 
         CTicket ticket
         vector[CLocation] locations
-        optional[CTimePoint] expiration_time
+        # GH-36954: this is not a CTimePoint
+        optional[CTimestamp] expiration_time
         c_string app_metadata
 
         bint operator==(CFlightEndpoint)
