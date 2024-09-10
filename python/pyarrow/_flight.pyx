@@ -32,6 +32,7 @@ from pyarrow.lib cimport *
 from pyarrow.lib import (ArrowCancelled, ArrowException, ArrowInvalid,
                          SignalStopHandler)
 from pyarrow.lib import as_buffer, frombytes, timestamp, tobytes
+from pyarrow.includes.chrono cimport time_point_cast
 from pyarrow.includes.libarrow_flight cimport *
 from pyarrow.ipc import _get_legacy_format_default, _ReadPandasMixin
 import pyarrow.lib as lib
@@ -743,8 +744,8 @@ cdef class FlightEndpoint(_Weakrefable):
             self.endpoint.locations.push_back(c_location)
 
         if expiration_time is not None:
-            self.endpoint.expiration_time = TimePoint_from_ns(
-                expiration_time.cast(timestamp("ns")).value)
+            self.endpoint.expiration_time = time_point_cast(TimePoint_from_ns(
+                expiration_time.cast(timestamp("ns")).value))
 
         self.endpoint.app_metadata = tobytes(app_metadata)
 
