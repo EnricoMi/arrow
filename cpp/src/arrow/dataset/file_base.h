@@ -399,7 +399,9 @@ struct ARROW_DS_EXPORT FileSystemDatasetWriteOptions {
   /// Partitioning used to generate fragment paths.
   std::shared_ptr<Partitioning> partitioning;
 
-  std::optional<bool> persist_order;
+  /// If true the order of rows in the dataset is preserved when writing with
+  /// multiple threads. This may cause notable performance degradation.
+  bool preserve_order = false;
 
   /// Maximum number of partitions any batch may be written into, default is 1K.
   int max_partitions = 1024;

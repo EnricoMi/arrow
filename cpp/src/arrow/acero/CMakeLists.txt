@@ -40,7 +40,6 @@ set(ARROW_ACERO_SRCS
     pivot_longer_node.cc
     project_node.cc
     query_context.cc
-    serial_batch_node.cc
     sink_node.cc
     sorted_merge_node.cc
     source_node.cc
@@ -161,7 +160,6 @@ endfunction()
 add_arrow_acero_test(plan_test SOURCES plan_test.cc test_nodes_test.cc)
 add_arrow_acero_test(source_node_test SOURCES source_node_test.cc)
 add_arrow_acero_test(fetch_node_test SOURCES fetch_node_test.cc)
-add_arrow_acero_test(serial_batch_node_test SOURCES serial_batch_node_test.cc)
 add_arrow_acero_test(order_by_node_test SOURCES order_by_node_test.cc)
 add_arrow_acero_test(hash_join_node_test SOURCES hash_join_node_test.cc
                      bloom_filter_test.cc)

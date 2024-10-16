@@ -19,10 +19,12 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <arrow/compute/api_scalar.h>
 
 #include "arrow/acero/exec_plan.h"
 #include "arrow/acero/options.h"
 #include "arrow/acero/test_nodes.h"
+#include "arrow/dataset/api.h"
 #include "arrow/dataset/file_base.h"
 #include "arrow/dataset/file_ipc.h"
 #include "arrow/dataset/partition.h"
@@ -40,6 +42,8 @@
 #include "arrow/util/key_value_metadata.h"
 
 namespace arrow {
+
+using internal::checked_cast;
 
 namespace dataset {
 
@@ -172,8 +176,9 @@ TEST_F(SimpleWriteNodeTest, CustomMetadata) {
   ASSERT_TRUE(custom_metadata->Equals(*file_schema->metadata()));
 }
 
-
 TEST_F(SimpleWriteNodeTest, SequenceOutput) {
+  // Test for ARROW-26818
+  auto format = std::make_shared<IpcFileFormat>();
   constexpr int kRowsPerBatch = 16;
   constexpr int kNumBatches = 32;
   constexpr random::SeedType kSeed = 42;
@@ -182,24 +187,63 @@ TEST_F(SimpleWriteNodeTest, SequenceOutput) {
 
   // Create an input table
   std::shared_ptr<Table> table = gen::Gen({gen::Step()})->FailOnError()->Table(kRowsPerBatch, kNumBatches);
-  dataset::WriteNodeOptions write_options(fs_write_options_);
-  write_options.write_options.persist_order = false;
+  auto dataset = std::make_shared<InMemoryDataset>(table);
+  auto scan_options = std::make_shared<ScanOptions>();
+  scan_options->use_threads = true;
 
-  // Write the data to disk.
-  acero::Declaration plan = acero::Declaration::Sequence(
-    {{"table_source", acero::TableSourceNodeOptions(table)},
-     {"jitter", acero::JitterNodeOptions(kSeed, kJitterMod)},
-     {"write", write_options}});
+  for (bool preserve_order : {true, false}) {
+    auto scanner_builder = std::make_shared<ScannerBuilder>(dataset, scan_options);
+    EXPECT_OK_AND_ASSIGN(auto scanner, scanner_builder->Finish());
+    auto exprs = scan_options->projection.call()->arguments;
+    auto names = checked_cast<const compute::MakeStructOptions*>(
+      scan_options->projection.call()->options.get()
+    )->field_names;
 
-  ASSERT_OK(DeclarationToStatus(plan));
+    auto fs = std::make_shared<fs::internal::MockFileSystem>(fs::kNoTime);
+    dataset::WriteNodeOptions write_options(fs_write_options_);
+    write_options.write_options.file_write_options = format->DefaultWriteOptions();
+    write_options.write_options.base_dir = "root";
+    write_options.write_options.partitioning = std::make_shared<HivePartitioning>(schema({}));
+    write_options.write_options.basename_template = "{i}.feather";
+    write_options.write_options.filesystem = fs;
+    write_options.write_options.preserve_order = preserve_order;
 
-  // Read the file back out and verify the nullability
-  ASSERT_OK_AND_ASSIGN(std::shared_ptr<io::RandomAccessFile> file,
-                     mock_fs_->OpenInputFile("/my_dataset/0.arrow"));
-  ASSERT_OK_AND_ASSIGN(std::shared_ptr<ipc::RecordBatchFileReader> file_reader,
-                     ipc::RecordBatchFileReader::Open(file));
-  ASSERT_OK_AND_ASSIGN(std::shared_ptr<Table> actual, file_reader->ToTable());
-  ASSERT_TABLES_EQUAL(*table, *actual);
+    // test plan of FileSystemDataset::Write with a jitter node that guarantees exec batches are out of order
+    acero::Declaration plan = acero::Declaration::Sequence({
+    {"scan", ScanNodeOptions{dataset, scanner->options(), /*require_sequenced_output=*/false, /*implicit_ordering=*/true}},
+    {"filter", acero::FilterNodeOptions{scanner->options()->filter}},
+    {"project", acero::ProjectNodeOptions{std::move(exprs), std::move(names)}},
+    {"jitter", acero::JitterNodeOptions(kSeed, kJitterMod)},
+    {"write", write_options},
+    });
+
+    ASSERT_OK(DeclarationToStatus(plan));
+
+    // Read the file back out and verify the order
+    ASSERT_OK_AND_ASSIGN(auto dataset_factory, FileSystemDatasetFactory::Make(
+                                                   fs, {"root/0.feather"}, format, {}));
+    ASSERT_OK_AND_ASSIGN(auto written_dataset, dataset_factory->Finish(FinishOptions{}));
+    ASSERT_OK_AND_ASSIGN(scanner_builder, written_dataset->NewScan());
+    ASSERT_OK(scanner_builder->UseThreads(false));
+    ASSERT_OK_AND_ASSIGN(scanner, scanner_builder->Finish());
+    ASSERT_OK_AND_ASSIGN(auto actual, scanner->ToTable());
+    TableBatchReader reader(*actual);
+    std::shared_ptr<RecordBatch> batch;
+    ABORT_NOT_OK(reader.ReadNext(&batch));
+    int32_t prev = -1;
+    auto out_of_order = false;
+    while (batch != nullptr) {
+      for (int row = 0; row < batch->num_rows(); ++row) {
+        auto scalar = batch->column(0)->GetScalar(row).ValueOrDie();
+        auto numeric_scalar = std::static_pointer_cast<arrow::NumericScalar<arrow::Int32Type>>(scalar);
+        int32_t value = numeric_scalar->value;
+        if (value <= prev) { out_of_order = true; }
+        prev = value;
+      }
+      ABORT_NOT_OK(reader.ReadNext(&batch));
+    }
+    ASSERT_EQ(out_of_order, !preserve_order);
+  }
 }
 
 }  // namespace dataset

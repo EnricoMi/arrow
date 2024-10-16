@@ -471,9 +471,11 @@ Status FileSystemDataset::Write(const FileSystemDatasetWriteOptions& write_optio
 
   WriteNodeOptions write_node_options(write_options);
   write_node_options.custom_schema = custom_schema;
+  // preserve existing order in dataset by setting implicit_order=true
+  bool implicit_ordering = write_node_options.write_options.preserve_order;
 
   acero::Declaration plan = acero::Declaration::Sequence({
-      {"scan", ScanNodeOptions{dataset, scanner->options()}},
+      {"scan", ScanNodeOptions{dataset, scanner->options(), /*require_sequenced_output=*/false, implicit_ordering}},
       {"filter", acero::FilterNodeOptions{scanner->options()->filter}},
       {"project", acero::ProjectNodeOptions{std::move(exprs), std::move(names)}},
       {"write", std::move(write_node_options)},
@@ -539,8 +541,10 @@ Result<acero::ExecNode*> MakeWriteNode(acero::ExecPlan* plan,
 
   ARROW_ASSIGN_OR_RAISE(
       auto node,
+      // sequence the exec batches to preserve order
       acero::MakeExecNode("consuming_sink", plan, std::move(inputs),
-                          acero::ConsumingSinkNodeOptions{std::move(consumer), {}, write_options.persist_order}));
+                          acero::ConsumingSinkNodeOptions{std::move(consumer), {},
+                            /*sequence_output=*/write_options.preserve_order}));
 
   return node;
 }

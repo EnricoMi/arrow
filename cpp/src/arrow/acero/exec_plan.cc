@@ -1111,7 +1111,6 @@ void RegisterPivotLongerNode(ExecFactoryRegistry*);
 void RegisterProjectNode(ExecFactoryRegistry*);
 void RegisterUnionNode(ExecFactoryRegistry*);
 void RegisterAggregateNode(ExecFactoryRegistry*);
-void RegisterSerialBatchNode(ExecFactoryRegistry*);
 void RegisterSinkNode(ExecFactoryRegistry*);
 void RegisterHashJoinNode(ExecFactoryRegistry*);
 void RegisterAsofJoinNode(ExecFactoryRegistry*);
@@ -1131,7 +1130,6 @@ ExecFactoryRegistry* default_exec_factory_registry() {
       internal::RegisterProjectNode(this);
       internal::RegisterUnionNode(this);
       internal::RegisterAggregateNode(this);
-      internal::RegisterSerialBatchNode(this);
       internal::RegisterSinkNode(this);
       internal::RegisterHashJoinNode(this);
       internal::RegisterAsofJoinNode(this);

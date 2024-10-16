@@ -351,6 +351,59 @@ TEST_F(TestFileSystemDataset, WriteProjected) {
   }
 }
 
+TEST_F(TestFileSystemDataset, WritePersistOrder) {
+  // Test for ARROW-26818
+  auto format = std::make_shared<IpcFileFormat>();
+  FileSystemDatasetWriteOptions write_options;
+  write_options.file_write_options = format->DefaultWriteOptions();
+  write_options.base_dir = "root";
+  write_options.partitioning = std::make_shared<HivePartitioning>(schema({}));
+  write_options.basename_template = "{i}.feather";
+
+  auto table = gen::Gen({gen::Step()})->FailOnError()->Table(2, 1024);
+  auto dataset = std::make_shared<InMemoryDataset>(table);
+
+  ASSERT_OK_AND_ASSIGN(auto scanner_builder, dataset->NewScan());
+  ARROW_CHECK_OK(scanner_builder->UseThreads(true));
+  ASSERT_OK_AND_ASSIGN(auto scanner, scanner_builder->Finish());
+
+  for (bool preserve_order : {true, false}) {
+    auto fs = std::make_shared<fs::internal::MockFileSystem>(fs::kNoTime);
+    write_options.filesystem = fs;
+    write_options.preserve_order = preserve_order;
+
+    ASSERT_OK(FileSystemDataset::Write(write_options, scanner));
+
+    // Read the file back out and verify the order
+    ASSERT_OK_AND_ASSIGN(auto dataset_factory, FileSystemDatasetFactory::Make(
+                                                   fs, {"root/0.feather"}, format, {}));
+    ASSERT_OK_AND_ASSIGN(auto written_dataset, dataset_factory->Finish(FinishOptions{}));
+    ASSERT_OK_AND_ASSIGN(scanner_builder, written_dataset->NewScan());
+    ASSERT_OK(scanner_builder->UseThreads(false));
+    ASSERT_OK_AND_ASSIGN(scanner, scanner_builder->Finish());
+    ASSERT_OK_AND_ASSIGN(auto actual, scanner->ToTable());
+    TableBatchReader reader(*actual);
+    std::shared_ptr<RecordBatch> batch;
+    ABORT_NOT_OK(reader.ReadNext(&batch));
+    int32_t prev = -1;
+    auto out_of_order = false;
+    while (batch != nullptr) {
+      for (int row = 0; row < batch->num_rows(); ++row) {
+        auto scalar = batch->column(0)->GetScalar(row).ValueOrDie();
+        auto numeric_scalar = std::static_pointer_cast<arrow::NumericScalar<arrow::Int32Type>>(scalar);
+        int32_t value = numeric_scalar->value;
+        if (value <= prev) { out_of_order = true; }
+        prev = value;
+      }
+      ABORT_NOT_OK(reader.ReadNext(&batch));
+    }
+    // TODO: this currently fails because out-of-order batches cannot be reproduced with this test
+    // how can we guarantee that table written with preserve_order = false is out of order?
+    // Other than SimpleWriteNodeTest.SequenceOutput in write_node_test.cc
+    ASSERT_EQ(out_of_order, !preserve_order);
+  }
+}
+
 class FileSystemWriteTest : public testing::TestWithParam<std::tuple<bool, bool>> {
   using PlanFactory = std::function<std::vector<acero::Declaration>(
       const FileSystemDatasetWriteOptions&,
