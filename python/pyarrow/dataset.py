@@ -848,8 +848,8 @@ def _ensure_write_partitioning(part, schema, flavor):
 
 
 def write_dataset(data, base_dir, *, basename_template=None, format=None,
-                  partitioning=None, partitioning_flavor=None, schema=None,
-                  filesystem=None, file_options=None, use_threads=True,
+                  partitioning=None, persist_order=None, partitioning_flavor=None,
+                  schema=None, filesystem=None, file_options=None, use_threads=True,
                   max_partitions=None, max_open_files=None,
                   max_rows_per_file=None, min_rows_per_group=None,
                   max_rows_per_group=None, file_visitor=None,
@@ -1029,7 +1029,7 @@ Table/RecordBatch, or iterable of RecordBatch
 
     _filesystemdataset_write(
         scanner, base_dir, basename_template, filesystem, partitioning,
-        file_options, max_partitions, file_visitor, existing_data_behavior,
-        max_open_files, max_rows_per_file,
+        persist_order, file_options, max_partitions, file_visitor,
+        existing_data_behavior, max_open_files, max_rows_per_file,
         min_rows_per_group, max_rows_per_group, create_dir
     )

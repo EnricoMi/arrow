@@ -3992,6 +3992,7 @@ def _filesystemdataset_write(
     str basename_template not None,
     FileSystem filesystem not None,
     Partitioning partitioning not None,
+    bool persist_order,
     FileWriteOptions file_options not None,
     int max_partitions,
     object file_visitor,
@@ -4014,6 +4015,7 @@ def _filesystemdataset_write(
     c_options.filesystem = filesystem.unwrap()
     c_options.base_dir = tobytes(_stringify_path(base_dir))
     c_options.partitioning = partitioning.unwrap()
+    c_options.persist_order = persist_order
     c_options.max_partitions = max_partitions
     c_options.max_open_files = max_open_files
     c_options.max_rows_per_file = max_rows_per_file

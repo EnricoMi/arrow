@@ -540,7 +540,7 @@ Result<acero::ExecNode*> MakeWriteNode(acero::ExecPlan* plan,
   ARROW_ASSIGN_OR_RAISE(
       auto node,
       acero::MakeExecNode("consuming_sink", plan, std::move(inputs),
-                          acero::ConsumingSinkNodeOptions{std::move(consumer)}));
+                          acero::ConsumingSinkNodeOptions{std::move(consumer), {}, write_options.persist_order}));
 
   return node;
 }

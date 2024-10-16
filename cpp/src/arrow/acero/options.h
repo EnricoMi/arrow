@@ -268,6 +268,14 @@ class ARROW_ACERO_EXPORT FetchNodeOptions : public ExecNodeOptions {
   int64_t count;
 };
 
+/// \brief a node that processes one batch at a time in batch order
+class ARROW_ACERO_EXPORT SerialBatchNodeOptions : public ExecNodeOptions {
+public:
+    static constexpr std::string_view kName = "serial_batch";
+    /// \brief create an instance from values
+    SerialBatchNodeOptions() = default;
+};
+
 /// \brief a node which executes expressions on input batches, producing batches
 /// of the same length with new columns.
 ///

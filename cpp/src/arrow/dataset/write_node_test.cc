@@ -22,6 +22,7 @@
 
 #include "arrow/acero/exec_plan.h"
 #include "arrow/acero/options.h"
+#include "arrow/acero/test_nodes.h"
 #include "arrow/dataset/file_base.h"
 #include "arrow/dataset/file_ipc.h"
 #include "arrow/dataset/partition.h"
@@ -33,6 +34,7 @@
 #include "arrow/testing/generator.h"
 #include "arrow/testing/gtest_util.h"
 #include "arrow/testing/matchers.h"
+#include "arrow/testing/random.h"
 
 #include "arrow/table.h"
 #include "arrow/util/key_value_metadata.h"
@@ -168,6 +170,36 @@ TEST_F(SimpleWriteNodeTest, CustomMetadata) {
   std::shared_ptr<Schema> file_schema = file_reader->schema();
 
   ASSERT_TRUE(custom_metadata->Equals(*file_schema->metadata()));
+}
+
+
+TEST_F(SimpleWriteNodeTest, SequenceOutput) {
+  constexpr int kRowsPerBatch = 16;
+  constexpr int kNumBatches = 32;
+  constexpr random::SeedType kSeed = 42;
+  constexpr int kJitterMod = 4;
+  acero::RegisterTestNodes();
+
+  // Create an input table
+  std::shared_ptr<Table> table = gen::Gen({gen::Step()})->FailOnError()->Table(kRowsPerBatch, kNumBatches);
+  dataset::WriteNodeOptions write_options(fs_write_options_);
+  write_options.write_options.persist_order = false;
+
+  // Write the data to disk.
+  acero::Declaration plan = acero::Declaration::Sequence(
+    {{"table_source", acero::TableSourceNodeOptions(table)},
+     {"jitter", acero::JitterNodeOptions(kSeed, kJitterMod)},
+     {"write", write_options}});
+
+  ASSERT_OK(DeclarationToStatus(plan));
+
+  // Read the file back out and verify the nullability
+  ASSERT_OK_AND_ASSIGN(std::shared_ptr<io::RandomAccessFile> file,
+                     mock_fs_->OpenInputFile("/my_dataset/0.arrow"));
+  ASSERT_OK_AND_ASSIGN(std::shared_ptr<ipc::RecordBatchFileReader> file_reader,
+                     ipc::RecordBatchFileReader::Open(file));
+  ASSERT_OK_AND_ASSIGN(std::shared_ptr<Table> actual, file_reader->ToTable());
+  ASSERT_TABLES_EQUAL(*table, *actual);
 }
 
 }  // namespace dataset
