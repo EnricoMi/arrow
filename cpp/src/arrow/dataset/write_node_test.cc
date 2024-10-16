@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <arrow/compute/api_scalar.h>
 
 #include "arrow/acero/exec_plan.h"
 #include "arrow/acero/options.h"
@@ -40,6 +41,8 @@
 #include "arrow/util/key_value_metadata.h"
 
 namespace arrow {
+
+using internal::checked_cast;
 
 namespace dataset {
 
@@ -172,7 +175,6 @@ TEST_F(SimpleWriteNodeTest, CustomMetadata) {
   ASSERT_TRUE(custom_metadata->Equals(*file_schema->metadata()));
 }
 
-
 TEST_F(SimpleWriteNodeTest, SequenceOutput) {
   constexpr int kRowsPerBatch = 16;
   constexpr int kNumBatches = 32;
@@ -183,13 +185,30 @@ TEST_F(SimpleWriteNodeTest, SequenceOutput) {
   // Create an input table
   std::shared_ptr<Table> table = gen::Gen({gen::Step()})->FailOnError()->Table(kRowsPerBatch, kNumBatches);
   dataset::WriteNodeOptions write_options(fs_write_options_);
-  write_options.write_options.persist_order = false;
+  write_options.write_options.persist_order = true;
 
   // Write the data to disk.
-  acero::Declaration plan = acero::Declaration::Sequence(
-    {{"table_source", acero::TableSourceNodeOptions(table)},
-     {"jitter", acero::JitterNodeOptions(kSeed, kJitterMod)},
-     {"write", write_options}});
+  //acero::Declaration plan = acero::Declaration::Sequence(
+  //  {{"table_source", acero::TableSourceNodeOptions(table)},
+  //   {"jitter", acero::JitterNodeOptions(kSeed, kJitterMod)},
+  //   {"write", write_options}});
+  auto dataset = std::make_shared<InMemoryDataset>(table);
+  auto scan_options = std::make_shared<ScanOptions>();
+  scan_options->use_threads = true;
+  auto scanner_builder = ScannerBuilder(dataset, scan_options);
+  EXPECT_OK_AND_ASSIGN(auto scanner, scanner_builder.Finish());
+    auto exprs = scan_options->projection.call()->arguments;
+    auto names = checked_cast<const compute::MakeStructOptions*>(
+                     scan_options->projection.call()->options.get())
+                     ->field_names;
+
+  acero::Declaration plan = acero::Declaration::Sequence({
+      {"scan", ScanNodeOptions{dataset, scanner->options(), false, true}},
+      {"filter", acero::FilterNodeOptions{scanner->options()->filter}},
+      {"project", acero::ProjectNodeOptions{std::move(exprs), std::move(names)}},
+      {"jitter", acero::JitterNodeOptions(kSeed, kJitterMod)},
+      {"write", write_options},
+  });
 
   ASSERT_OK(DeclarationToStatus(plan));
 
@@ -199,7 +218,7 @@ TEST_F(SimpleWriteNodeTest, SequenceOutput) {
   ASSERT_OK_AND_ASSIGN(std::shared_ptr<ipc::RecordBatchFileReader> file_reader,
                      ipc::RecordBatchFileReader::Open(file));
   ASSERT_OK_AND_ASSIGN(std::shared_ptr<Table> actual, file_reader->ToTable());
-  ASSERT_TABLES_EQUAL(*table, *actual);
+  ASSERT_TABLES_EQUAL(*table->CombineChunks().ValueOrDie(), *actual->CombineChunks().ValueOrDie());
 }
 
 }  // namespace dataset

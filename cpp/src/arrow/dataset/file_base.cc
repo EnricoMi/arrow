@@ -471,9 +471,10 @@ Status FileSystemDataset::Write(const FileSystemDatasetWriteOptions& write_optio
 
   WriteNodeOptions write_node_options(write_options);
   write_node_options.custom_schema = custom_schema;
+  bool implicit_ordering = write_node_options.write_options.persist_order.value_or(false);
 
   acero::Declaration plan = acero::Declaration::Sequence({
-      {"scan", ScanNodeOptions{dataset, scanner->options()}},
+      {"scan", ScanNodeOptions{dataset, scanner->options(), false, implicit_ordering}},
       {"filter", acero::FilterNodeOptions{scanner->options()->filter}},
       {"project", acero::ProjectNodeOptions{std::move(exprs), std::move(names)}},
       {"write", std::move(write_node_options)},

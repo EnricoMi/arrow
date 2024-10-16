@@ -351,6 +351,41 @@ TEST_F(TestFileSystemDataset, WriteProjected) {
   }
 }
 
+TEST_F(TestFileSystemDataset, WritePersistOrder) {
+  // Test for ARROW-26818
+  auto format = std::make_shared<IpcFileFormat>();
+  auto fs = std::make_shared<fs::internal::MockFileSystem>(fs::kNoTime);
+  FileSystemDatasetWriteOptions write_options;
+  write_options.file_write_options = format->DefaultWriteOptions();
+  write_options.filesystem = fs;
+  write_options.base_dir = "root";
+  write_options.partitioning = std::make_shared<HivePartitioning>(schema({}));
+  write_options.persist_order = false;
+  write_options.basename_template = "{i}.feather";
+
+  //std::shared_ptr<Schema> dataset_schema = schema({field("f0", uint32())});
+  //RecordBatchVector batches = gen::Gen({gen::Step()})->FailOnError()->RecordBatches(2, 1024);
+  //auto dataset = std::make_shared<InMemoryDataset>(dataset_schema, batches);
+  //auto table = Table::FromRecordBatches(batches).ValueOrDie();
+  auto table = gen::Gen({gen::Step()})->FailOnError()->Table(2, 1024);
+  auto dataset = std::make_shared<InMemoryDataset>(table);
+
+  ASSERT_OK_AND_ASSIGN(auto scanner_builder, dataset->NewScan());
+  ARROW_CHECK_OK(scanner_builder->UseThreads(true));
+  ASSERT_OK_AND_ASSIGN(auto scanner, scanner_builder->Finish());
+  ASSERT_OK(FileSystemDataset::Write(write_options, scanner));
+
+  ASSERT_OK_AND_ASSIGN(auto dataset_factory, FileSystemDatasetFactory::Make(
+                                                   fs, {"root/0.feather"}, format, {}));
+  ASSERT_OK_AND_ASSIGN(auto written_dataset, dataset_factory->Finish(FinishOptions{}));
+  auto expected_schema = schema({field("f0", uint32())});
+  AssertSchemaEqual(*expected_schema, *written_dataset->schema());
+  ASSERT_OK_AND_ASSIGN(scanner_builder, written_dataset->NewScan());
+  ASSERT_OK_AND_ASSIGN(scanner, scanner_builder->Finish());
+  ASSERT_OK_AND_ASSIGN(auto actual, scanner->ToTable());
+  ASSERT_TABLES_EQUAL(*table, *actual);
+}
+
 class FileSystemWriteTest : public testing::TestWithParam<std::tuple<bool, bool>> {
   using PlanFactory = std::function<std::vector<acero::Declaration>(
       const FileSystemDatasetWriteOptions&,
