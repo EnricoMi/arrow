@@ -16,6 +16,7 @@
 // under the License.
 
 #include <string_view>
+#include <thread>
 
 #include "gtest/gtest.h"
 
@@ -119,7 +120,7 @@ class DatasetEncryptionTestBase : public ::testing::Test {
 
   virtual void PrepareTableAndPartitioning() = 0;
 
-  void TestScanDataset() {
+  void TestScanDataset(bool concurrently = false) {
     // Create decryption properties.
     auto decryption_config =
         std::make_shared<parquet::encryption::DecryptionConfiguration>();
@@ -151,19 +152,38 @@ class DatasetEncryptionTestBase : public ::testing::Test {
     // Create the dataset
     ASSERT_OK_AND_ASSIGN(auto dataset, dataset_factory->Finish());
 
+    std::vector<std::thread> threads;
+
     // Reuse the dataset above to scan it twice to make sure decryption works correctly.
-    for (size_t i = 0; i < 2; ++i) {
+    const size_t attempts = concurrently ? 100 : 2;
+    for (size_t i = 0; i < attempts; ++i) {
+      if (concurrently) {
+          printf("Starting thread #%lu\n", i+1);
+          threads.emplace_back(&DatasetEncryptionTestBase::read, dataset);
+      } else {
+          ASSERT_OK_AND_ASSIGN(auto read_table, read(dataset));
+          AssertTablesEqual(*read_table, *table_);
+      }
+    }
+    if (concurrently) {
+        for (auto &thread : threads) {
+          printf("Waiting for thread.\n");
+            thread.join();
+        }
+    }
+  }
+
+  static Result<std::shared_ptr<Table>> read(const std::shared_ptr<Dataset> &dataset) {
       // Read dataset into table
-      ASSERT_OK_AND_ASSIGN(auto scanner_builder, dataset->NewScan());
-      ASSERT_OK_AND_ASSIGN(auto scanner, scanner_builder->Finish());
-      ASSERT_OK_AND_ASSIGN(auto read_table, scanner->ToTable());
+      ARROW_ASSIGN_OR_RAISE(auto scanner_builder, dataset->NewScan());
+      ARROW_ASSIGN_OR_RAISE(auto scanner, scanner_builder->Finish());
+      ARROW_ASSIGN_OR_RAISE(auto read_table, scanner->ToTable());
 
       // Verify the data was read correctly
-      ASSERT_OK_AND_ASSIGN(auto combined_table, read_table->CombineChunks());
+      ARROW_ASSIGN_OR_RAISE(auto combined_table, read_table->CombineChunks());
       // Validate the table
-      ASSERT_OK(combined_table->ValidateFull());
-      AssertTablesEqual(*combined_table, *table_);
-    }
+      RETURN_NOT_OK(combined_table->ValidateFull());
+      return combined_table;
   }
 
  protected:
@@ -206,6 +226,10 @@ class DatasetEncryptionTest : public DatasetEncryptionTestBase {
 // scanned.
 TEST_F(DatasetEncryptionTest, WriteReadDatasetWithEncryption) {
   ASSERT_NO_FATAL_FAILURE(TestScanDataset());
+}
+
+TEST_F(DatasetEncryptionTest, WriteReadDatasetWithEncryptionThreaded) {
+    ASSERT_NO_FATAL_FAILURE(TestScanDataset(true));
 }
 
 // Read a single parquet file with and without decryption properties.
