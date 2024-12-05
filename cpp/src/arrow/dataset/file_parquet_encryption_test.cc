@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include <future>
 #include <string_view>
-#include <thread>
 
 #include "gtest/gtest.h"
 
@@ -152,14 +152,14 @@ class DatasetEncryptionTestBase : public ::testing::Test {
     // Create the dataset
     ASSERT_OK_AND_ASSIGN(auto dataset, dataset_factory->Finish());
 
-    std::vector<std::thread> threads;
+    std::vector<std::future<Result<std::shared_ptr<Table>>>> threads;
 
+    // Read dataset above multiple times concurrently to see that is thread-safe.
     // Reuse the dataset above to scan it twice to make sure decryption works correctly.
-    const size_t attempts = concurrently ? 100 : 2;
+    const size_t attempts = concurrently ? 1000 : 2;
     for (size_t i = 0; i < attempts; ++i) {
       if (concurrently) {
-          printf("Starting thread #%lu\n", i+1);
-          threads.emplace_back(&DatasetEncryptionTestBase::read, dataset);
+          threads.push_back(std::async(DatasetEncryptionTestBase::read, dataset));
       } else {
           ASSERT_OK_AND_ASSIGN(auto read_table, read(dataset));
           AssertTablesEqual(*read_table, *table_);
@@ -167,8 +167,8 @@ class DatasetEncryptionTestBase : public ::testing::Test {
     }
     if (concurrently) {
         for (auto &thread : threads) {
-          printf("Waiting for thread.\n");
-            thread.join();
+          ASSERT_OK_AND_ASSIGN(auto read_table, thread.get());
+          AssertTablesEqual(*read_table, *table_);
         }
     }
   }

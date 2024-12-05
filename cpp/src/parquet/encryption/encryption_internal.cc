@@ -25,7 +25,6 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -386,17 +385,14 @@ class AesDecryptor::AesDecryptorImpl {
   explicit AesDecryptorImpl(ParquetCipher::type alg_id, int32_t key_len, bool metadata,
                             bool contains_length);
 
-  ~AesDecryptorImpl() { WipeOut(); }
+  ~AesDecryptorImpl() = default;
+
+  std::function<void(EVP_CIPHER_CTX*)> ctxDeleter = [](EVP_CIPHER_CTX* ctx) {
+    EVP_CIPHER_CTX_free(ctx);
+  };
 
   int32_t Decrypt(span<const uint8_t> ciphertext, span<const uint8_t> key,
                   span<const uint8_t> aad, span<uint8_t> plaintext);
-
-  void WipeOut() {
-    if (nullptr != ctx_) {
-      EVP_CIPHER_CTX_free(ctx_);
-      ctx_ = nullptr;
-    }
-  }
 
   [[nodiscard]] int32_t PlaintextLength(int32_t ciphertext_len) const {
     if (ciphertext_len < ciphertext_size_delta_) {
@@ -424,44 +420,7 @@ class AesDecryptor::AesDecryptorImpl {
   }
 
  private:
-  EVP_CIPHER_CTX* ctx_;
-  mutable std::mutex ctx_mutex_;
-
-  EVP_CIPHER_CTX* GetCipherContext() {
-    std::lock_guard<std::mutex> lock(ctx_mutex_);
-    if (ctx_ == nullptr) {
-      InitCipherContext();
-    }
-    return ctx_;
-  }
-
-  void InitCipherContext() {
-    ctx_ = EVP_CIPHER_CTX_new();
-    if (nullptr == ctx_) {
-      throw ParquetException("Couldn't init cipher context");
-    }
-
-    if (kGcmMode == aes_mode_) {
-      // Init AES-GCM with specified key length
-      if (16 == key_length_) {
-        DECRYPT_INIT(ctx_, EVP_aes_128_gcm());
-      } else if (24 == key_length_) {
-        DECRYPT_INIT(ctx_, EVP_aes_192_gcm());
-      } else if (32 == key_length_) {
-        DECRYPT_INIT(ctx_, EVP_aes_256_gcm());
-      }
-    } else {
-      // Init AES-CTR with specified key length
-      if (16 == key_length_) {
-        DECRYPT_INIT(ctx_, EVP_aes_128_ctr());
-      } else if (24 == key_length_) {
-        DECRYPT_INIT(ctx_, EVP_aes_192_ctr());
-      } else if (32 == key_length_) {
-        DECRYPT_INIT(ctx_, EVP_aes_256_ctr());
-      }
-    }
-  }
-
+  std::unique_ptr<EVP_CIPHER_CTX, decltype(ctxDeleter)> ctx_;
   int32_t aes_mode_;
   int32_t key_length_;
   int32_t ciphertext_size_delta_;
@@ -476,14 +435,23 @@ class AesDecryptor::AesDecryptorImpl {
 
   int32_t CtrDecrypt(span<const uint8_t> ciphertext, span<const uint8_t> key,
                      span<uint8_t> plaintext);
+
+  /// Create a new cipher context, duplicates unused ctx_ to avoid going through initialization
+  std::unique_ptr<EVP_CIPHER_CTX, decltype(ctxDeleter)> GetCipherContext() {
+    // could use EVP_CIPHER_CTX_dup instead (requires OpenSSL 3.2.0 and above)
+    auto ctx = std::unique_ptr<EVP_CIPHER_CTX, decltype(ctxDeleter)>(EVP_CIPHER_CTX_new(), ctxDeleter);
+    if (ctx && !EVP_CIPHER_CTX_copy(ctx.get(), ctx_.get())) {
+      // ctx gets freed when leaving this method
+      throw ParquetException("Couldn't init cipher context");
+    }
+    return ctx;
+  }
 };
 
 int32_t AesDecryptor::Decrypt(span<const uint8_t> ciphertext, span<const uint8_t> key,
                               span<const uint8_t> aad, span<uint8_t> plaintext) {
   return impl_->Decrypt(ciphertext, key, aad, plaintext);
 }
-
-void AesDecryptor::WipeOut() { impl_->WipeOut(); }
 
 AesDecryptor::~AesDecryptor() {}
 
@@ -492,7 +460,6 @@ AesDecryptor::AesDecryptorImpl::AesDecryptorImpl(ParquetCipher::type alg_id,
                                                  bool contains_length) {
   openssl::EnsureInitialized();
 
-  ctx_ = nullptr;
   length_buffer_length_ = contains_length ? kBufferSizeLength : 0;
   ciphertext_size_delta_ = length_buffer_length_ + kNonceLength;
   if (metadata || (ParquetCipher::AES_GCM_V1 == alg_id)) {
@@ -509,7 +476,32 @@ AesDecryptor::AesDecryptorImpl::AesDecryptorImpl(ParquetCipher::type alg_id,
   }
 
   key_length_ = key_len;
-  InitCipherContext();
+
+  // create a EVP_CIPHER_CTX that gets auto-freed
+  ctx_ = std::unique_ptr<EVP_CIPHER_CTX, decltype(ctxDeleter)>(EVP_CIPHER_CTX_new(), ctxDeleter);
+  if (!ctx_) {
+    throw ParquetException("Couldn't init cipher context");
+  }
+
+  if (kGcmMode == aes_mode_) {
+    // Init AES-GCM with specified key length
+    if (16 == key_len) {
+      DECRYPT_INIT(ctx_.get(), EVP_aes_128_gcm());
+    } else if (24 == key_len) {
+      DECRYPT_INIT(ctx_.get(), EVP_aes_192_gcm());
+    } else if (32 == key_len) {
+      DECRYPT_INIT(ctx_.get(), EVP_aes_256_gcm());
+    }
+  } else {
+    // Init AES-CTR with specified key length
+    if (16 == key_len) {
+      DECRYPT_INIT(ctx_.get(), EVP_aes_128_ctr());
+    } else if (24 == key_len) {
+      DECRYPT_INIT(ctx_.get(), EVP_aes_192_ctr());
+    } else if (32 == key_len) {
+      DECRYPT_INIT(ctx_.get(), EVP_aes_256_ctr());
+    }
+  }
 }
 
 std::unique_ptr<AesEncryptor> AesEncryptor::Make(ParquetCipher::type alg_id,
@@ -542,6 +534,7 @@ std::shared_ptr<AesDecryptor> AesDecryptor::Make(
     ss << "Crypto algorithm " << alg_id << " is not supported";
     throw ParquetException(ss.str());
   }
+
   auto decryptor = std::make_shared<AesDecryptor>(alg_id, key_len, metadata);
   if (all_decryptors != nullptr) {
     all_decryptors->push_back(decryptor);
@@ -637,7 +630,7 @@ int32_t AesDecryptor::AesDecryptorImpl::GcmDecrypt(span<const uint8_t> ciphertex
   auto ctx = GetCipherContext();
 
   // Setting key and IV
-  if (1 != EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), nonce.data())) {
+  if (1 != EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr, key.data(), nonce.data())) {
     throw ParquetException("Couldn't set key and IV");
   }
 
@@ -647,7 +640,7 @@ int32_t AesDecryptor::AesDecryptorImpl::GcmDecrypt(span<const uint8_t> ciphertex
     ss << "AAD size " << aad.size() << " overflows int";
     throw ParquetException(ss.str());
   }
-  if ((!aad.empty()) && (1 != EVP_DecryptUpdate(ctx, nullptr, &len, aad.data(),
+  if ((!aad.empty()) && (1 != EVP_DecryptUpdate(ctx.get(), nullptr, &len, aad.data(),
                                                 static_cast<int>(aad.size())))) {
     throw ParquetException("Couldn't set AAD");
   }
@@ -655,7 +648,7 @@ int32_t AesDecryptor::AesDecryptorImpl::GcmDecrypt(span<const uint8_t> ciphertex
   // Decryption
   int decryption_length =
       ciphertext_len - length_buffer_length_ - kNonceLength - kGcmTagLength;
-  if (!EVP_DecryptUpdate(ctx, plaintext.data(), &len,
+  if (!EVP_DecryptUpdate(ctx.get(), plaintext.data(), &len,
                          ciphertext.data() + length_buffer_length_ + kNonceLength,
                          decryption_length)) {
     throw ParquetException("Failed decryption update");
@@ -664,12 +657,12 @@ int32_t AesDecryptor::AesDecryptorImpl::GcmDecrypt(span<const uint8_t> ciphertex
   plaintext_len = len;
 
   // Checking the tag (authentication)
-  if (!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, kGcmTagLength, tag.data())) {
+  if (!EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, kGcmTagLength, tag.data())) {
     throw ParquetException("Failed authentication");
   }
 
   // Finalization
-  if (1 != EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len)) {
+  if (1 != EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + len, &len)) {
     throw ParquetException("Failed decryption finalization");
   }
 
@@ -713,13 +706,13 @@ int32_t AesDecryptor::AesDecryptorImpl::CtrDecrypt(span<const uint8_t> ciphertex
   auto ctx = GetCipherContext();
 
   // Setting key and IV
-  if (1 != EVP_DecryptInit_ex(ctx, nullptr, nullptr, key.data(), iv.data())) {
+  if (1 != EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr, key.data(), iv.data())) {
     throw ParquetException("Couldn't set key and IV");
   }
 
   // Decryption
   int decryption_length = ciphertext_len - length_buffer_length_ - kNonceLength;
-  if (!EVP_DecryptUpdate(ctx, plaintext.data(), &len,
+  if (!EVP_DecryptUpdate(ctx.get(), plaintext.data(), &len,
                          ciphertext.data() + length_buffer_length_ + kNonceLength,
                          decryption_length)) {
     throw ParquetException("Failed decryption update");
@@ -728,7 +721,7 @@ int32_t AesDecryptor::AesDecryptorImpl::CtrDecrypt(span<const uint8_t> ciphertex
   plaintext_len = len;
 
   // Finalization
-  if (1 != EVP_DecryptFinal_ex(ctx, plaintext.data() + len, &len)) {
+  if (1 != EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + len, &len)) {
     throw ParquetException("Failed decryption finalization");
   }
 
