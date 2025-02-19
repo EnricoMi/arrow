@@ -1,0 +1,98 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: GR Python
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Arrow
+        uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          path: arrow
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: 3.12
+      - name: Build Python Wheel
+        run: |
+          echo "::group::Setup C++"
+          gcc --version
+          export CC=gcc-4.8
+          export CXX=g++-4.8
+          echo "::endgroup::"
+
+          echo "::group::Setup env"
+          pushd arrow
+          export PARQUET_TEST_DATA="${PWD}/cpp/submodules/parquet-testing/data"
+          export ARROW_TEST_DATA="${PWD}/testing/data"
+          popd
+          echo "::endgroup::"
+
+          echo "::group::Install build dependencies"
+          sudo apt-get install build-essential ninja-build cmake python3-dev
+          python3 -m venv pyarrow-dev
+          source ./pyarrow-dev/bin/activate
+          pip install -r arrow/python/requirements-build.txt
+          echo "::endgroup::"
+
+          echo "::group::Compile C++"
+          mkdir dist
+          export ARROW_HOME=$(pwd)/dist
+          export LD_LIBRARY_PATH=$(pwd)/dist/lib:$LD_LIBRARY_PATH
+          export CMAKE_PREFIX_PATH=$ARROW_HOME:$CMAKE_PREFIX_PATH
+          cmake -S arrow/cpp -B arrow/cpp/build \
+            -DCMAKE_INSTALL_PREFIX=$ARROW_HOME \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            --preset ninja-release-python
+          cmake --build arrow/cpp/build --target install
+          echo "::endgroup::"
+
+          echo "::group::Compile Python"
+          pushd arrow/python
+          export PYARROW_PARALLEL=4
+          python setup.py build_ext --inplace
+          popd
+          echo "::endgroup::"
+
+          echo "::group::Build Wheel"
+          pip install wheel
+          pushd arrow/python
+          python setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
+          popd
+          echo "::endgroup::"
+
+          echo "::group::"
+          ls -lah arrow/python/dist
+          echo "::endgroup::"
+
