@@ -31,8 +31,12 @@ permissions:
 
 jobs:
   python:
-    name: Python
+    name: Python ${{ matrix.python_version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - name: Checkout Arrow
         uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
@@ -43,7 +47,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
-          python-version: 3.12
+          python-version: ${{ matrix.python_version }}
       - name: Build Python Wheel
         run: |
           # Build Python Wheel
@@ -91,7 +95,13 @@ jobs:
           popd
           echo "::endgroup::"
 
-          echo "::group::"
+          echo "::group::List files"
           ls -lah arrow/python/dist
           echo "::endgroup::"
+
+      - name: Upload Wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wheel Python ${{ matrix.python_version }}
+          path: arrow/python/dist/pyarrow-*.whl
 
