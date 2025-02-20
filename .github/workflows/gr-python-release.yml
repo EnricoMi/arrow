@@ -63,6 +63,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Install build dependencies"
+          sudo ./arrow/dev/release/setup-ubuntu.sh
           sudo apt-get install build-essential ninja-build cmake python3-dev
           python3 -m venv pyarrow-dev
           source ./pyarrow-dev/bin/activate
