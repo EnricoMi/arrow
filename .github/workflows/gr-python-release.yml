@@ -77,7 +77,7 @@ jobs:
           cmake -S arrow/cpp -B arrow/cpp/build \
             -DCMAKE_INSTALL_PREFIX=$ARROW_HOME \
             -DCMAKE_INSTALL_LIBDIR=lib \
-            --preset ninja-release-python
+            --preset ninja-release-python-maximal
           cmake --build arrow/cpp/build --target install
           echo "::endgroup::"
 
