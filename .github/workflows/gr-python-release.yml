@@ -64,7 +64,7 @@ jobs:
 
           echo "::group::Install build dependencies"
           sudo ./arrow/dev/release/setup-ubuntu.sh
-          sudo apt-get install build-essential ninja-build cmake python3-dev
+          sudo apt-get install build-essential ninja-build cmake python3-dev nvidia-cuda-toolkit
           python3 -m venv pyarrow-dev
           source ./pyarrow-dev/bin/activate
           pip install -r arrow/python/requirements-build.txt
