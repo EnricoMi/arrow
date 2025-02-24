@@ -86,6 +86,12 @@ jobs:
           pip install wheel
           pushd arrow/python
           export PYARROW_PARALLEL=4
+          export PYARROW_WITH_AZUREFS=ON
+          export PYARROW_WITH_FEATHER=ON
+          export PYARROW_WITH_FLIGHT=ON
+          export PYARROW_WITH_GCSFS=ON
+          export PYARROW_WITH_HDFS=ON
+          export PYARROW_WITH_S3FS=ON
           python setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
           popd
           echo "::endgroup::"
