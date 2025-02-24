@@ -82,16 +82,10 @@ jobs:
           cmake --build arrow/cpp/build --target install
           echo "::endgroup::"
 
-          echo "::group::Compile Python"
-          pushd arrow/python
-          export PYARROW_PARALLEL=4
-          python setup.py build_ext --inplace
-          popd
-          echo "::endgroup::"
-
           echo "::group::Build Wheel"
           pip install wheel
           pushd arrow/python
+          export PYARROW_PARALLEL=4
           python setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
           popd
           echo "::endgroup::"
