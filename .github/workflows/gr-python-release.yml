@@ -116,6 +116,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist/
+      - name: Inspect dist/
+        run: |
+          find dist/
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -125,5 +128,5 @@ jobs:
             --verify-tag \
             --title "${GITHUB_REF_NAME/*\//}" \
             --notes "TODO" \
-            dist/pyarrow-*.whl
+            dist/*/pyarrow-*.whl
 
