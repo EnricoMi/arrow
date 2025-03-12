@@ -80,5 +80,5 @@ pyarrow = ["*.pxd", "*.pyx", "includes/*.pxd"]
 root = '..'
 version_file = 'pyarrow/_generated_version.py'
 version_scheme = 'guess-next-dev'
-git_describe_command = 'git describe --dirty --tags --long --match "apache-arrow-[0-9]*.*"'
+git_describe_command = 'git describe --dirty --tags --long --match "v[0-9]*.*"'
 fallback_version = '19.0.1'
