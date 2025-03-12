@@ -1,0 +1,136 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: GR Python
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'maint-*'
+      - '[0-9]+.[0-9]+.[0-9]+-gr'
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+-gr.[0-9]+'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python ${{ matrix.python_version }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout Arrow
+        uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          path: arrow
+      - name: Setup Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: ${{ matrix.python_version }}
+      - name: Build Python Wheel
+        run: |
+          # Build Python Wheel
+          echo "::group::Setup C++"
+          gcc --version
+          echo "::endgroup::"
+
+          echo "::group::Setup env"
+          pushd arrow
+          export PARQUET_TEST_DATA="${PWD}/cpp/submodules/parquet-testing/data"
+          export ARROW_TEST_DATA="${PWD}/testing/data"
+          popd
+          echo "::endgroup::"
+
+          echo "::group::Install build dependencies"
+          sudo ./arrow/dev/release/setup-ubuntu.sh
+          sudo apt-get install build-essential ninja-build cmake python3-dev nvidia-cuda-toolkit
+          python3 -m venv pyarrow-dev
+          source ./pyarrow-dev/bin/activate
+          pip install -r arrow/python/requirements-build.txt
+          echo "::endgroup::"
+
+          echo "::group::Compile C++"
+          mkdir dist
+          export ARROW_HOME=$(pwd)/dist
+          export LD_LIBRARY_PATH=$(pwd)/dist/lib:$LD_LIBRARY_PATH
+          export CMAKE_PREFIX_PATH=$ARROW_HOME:$CMAKE_PREFIX_PATH
+          cmake -S arrow/cpp -B arrow/cpp/build \
+            -DCMAKE_INSTALL_PREFIX=$ARROW_HOME \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            --preset ninja-release-python-maximal
+          cmake --build arrow/cpp/build --target install
+          echo "::endgroup::"
+
+          echo "::group::Build Wheel"
+          pip install wheel
+          pushd arrow/python
+          export PYARROW_PARALLEL=4
+          export PYARROW_WITH_AZUREFS=ON
+          export PYARROW_WITH_FEATHER=ON
+          export PYARROW_WITH_FLIGHT=ON
+          export PYARROW_WITH_GCSFS=ON
+          export PYARROW_WITH_HDFS=ON
+          export PYARROW_WITH_S3FS=ON
+          python setup.py build_ext --build-type=release --bundle-arrow-cpp bdist_wheel
+          popd
+          echo "::endgroup::"
+
+          echo "::group::List files"
+          ls -lah arrow/python/dist
+          echo "::endgroup::"
+
+      - name: Upload Wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wheel Python ${{ matrix.python_version }}
+          path: arrow/python/dist/pyarrow-*.whl
+
+  release:
+    name: "Release Wheel files"
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: python
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Wheel files
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+      - name: Inspect dist/
+        run: |
+          find dist/
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${GITHUB_REF_NAME} \
+            --repo ${GITHUB_REPOSITORY} \
+            --verify-tag \
+            --title "${GITHUB_REF_NAME/*\//}" \
+            --notes "TODO" \
+            dist/*/pyarrow-*.whl
+
