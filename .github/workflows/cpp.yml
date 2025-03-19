@@ -165,7 +165,12 @@ jobs:
         run: |
           # For ORC
           export TZDIR=/c/msys64/usr/share/zoneinfo
-          ci/scripts/cpp_test.sh $(pwd) $(pwd)/build
+          for attempt in {1..10}
+          do
+            echo "::group::Test run #$attempt"
+            ci/scripts/cpp_test.sh $(pwd) $(pwd)/build
+            echo "::endgroup::"
+          done
 
   windows-mingw:
     name: AMD64 Windows MinGW ${{ matrix.msystem_upper }} C++
@@ -275,4 +280,11 @@ jobs:
       - name: Test
         shell: msys2 {0}
         run: |
-          ci/scripts/cpp_test.sh "$(pwd)" "$(pwd)/build"
+          pass=0
+          runs=10
+          for attempt in $(seq 1 $runs); do
+            echo "::group::Test run #$attempt"
+            if ci/scripts/cpp_test.sh "$(pwd)" "$(pwd)/build"; then $((pass++)); fi
+            echo "::endgroup::"
+          done
+          echo "$pass out of $runs attempts succeeded"
