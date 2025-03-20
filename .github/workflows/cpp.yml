@@ -145,8 +145,6 @@ jobs:
       - name: Setup MSYS2
         shell: msys2 {0}
         run: ci/scripts/msys2_setup.sh cpp
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
       - name: Cache ccache
         uses: actions/cache@v4
         with:
