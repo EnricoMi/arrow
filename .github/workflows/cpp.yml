@@ -144,7 +144,9 @@ jobs:
           update: true
       - name: Setup MSYS2
         shell: msys2 {0}
-        run: ci/scripts/msys2_setup.sh cpp
+        run: |
+          ci/scripts/msys2_setup.sh cpp
+          echo "ASAN_SYMBOLIZER_PATH=$PWD/../../_temp/msys64/clang64/bin/llvm-symbolizer.exe" >> "$GITHUB_ENV"
       - name: Cache ccache
         uses: actions/cache@v4
         with:
@@ -155,7 +157,6 @@ jobs:
         shell: msys2 {0}
         run: |
           export CMAKE_BUILD_PARALLEL_LEVEL=$NUMBER_OF_PROCESSORS
-          export ASAN_SYMBOLIZER_PATH="$PWD/../../_temp/msys64/clang64/bin/llvm-symbolizer.exe"
           ci/scripts/cpp_build.sh "$(pwd)" "$(pwd)/build"
       - name: Download Timezone Database
         shell: bash
