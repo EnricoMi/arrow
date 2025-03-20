@@ -112,6 +112,7 @@ jobs:
       ARROW_CMAKE_ARGS: >-
         -DARROW_PACKAGE_PREFIX=/${{ matrix.msystem_lower}}
         -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON
+      ARROW_CTEST_OUTPUT_JUNIT: junit-results
       # We can't use unity build because we don't have enough memory on
       # GitHub Actions.
       # CMAKE_UNITY_BUILD: ON
@@ -182,3 +183,14 @@ jobs:
             echo "::endgroup::"
           done
           echo "$pass out of $runs attempts succeeded"
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action/windows@v2
+        if: always()
+        with:
+          files: './build/cpp/${{ env.ARROW_CTEST_OUTPUT_JUNIT }}/*.xml'
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-result-amd-windows-mingw-${{ matrix.msystem_lower }}-${{ matrix.label }}
+          path: './build/cpp/${{ env.ARROW_CTEST_OUTPUT_JUNIT }}'
