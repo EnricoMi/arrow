@@ -391,10 +391,6 @@ class AesDecryptor::AesDecryptorImpl {
                   span<const uint8_t> aad, span<uint8_t> plaintext);
 
   void WipeOut() {
-    if (nullptr != ctx_) {
-      EVP_CIPHER_CTX_free(ctx_);
-      ctx_ = nullptr;
-    }
   }
 
   [[nodiscard]] int32_t PlaintextLength(int32_t ciphertext_len) const {
