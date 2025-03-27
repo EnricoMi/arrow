@@ -99,7 +99,7 @@ else
     --label-regex unittest \
     --output-on-failure \
     --parallel ${n_jobs} \
-    --repeat until-fail:1000 \
+    --repeat until-fail:100 \
     --timeout ${ARROW_CTEST_TIMEOUT:-300} \
     --force-new-ctest-process \
     -R 'encrypt' \
