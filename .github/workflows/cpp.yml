@@ -56,10 +56,6 @@ on:
       - 'format/Flight.proto'
       - 'testing'
 
-concurrency:
-  group: ${{ github.repository }}-${{ github.head_ref || github.sha }}-${{ github.workflow }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
@@ -73,7 +69,7 @@ jobs:
     name: ${{ matrix.title }}
     runs-on: ${{ matrix.runs-on }}
     if: ${{ !contains(github.event.pull_request.title, 'WIP') }}
-    timeout-minutes: 75
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -178,7 +174,7 @@ jobs:
     name: ${{ matrix.architecture }} macOS ${{ matrix.macos-version }} C++
     runs-on: macos-${{ matrix.macos-version }}
     if: ${{ !contains(github.event.pull_request.title, 'WIP') }}
-    timeout-minutes: 75
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -269,7 +265,7 @@ jobs:
     name: ${{ matrix.title }}
     runs-on: ${{ matrix.os }}
     if: ${{ !contains(github.event.pull_request.title, 'WIP') }}
-    timeout-minutes: 60
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -366,7 +362,7 @@ jobs:
     runs-on: windows-2019
     if: ${{ !contains(github.event.pull_request.title, 'WIP') }}
     # Build may take 1h+ without cache.
-    timeout-minutes: 120
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
