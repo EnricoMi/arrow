@@ -23,8 +23,6 @@
 #include <condition_variable>
 #include <mutex>
 #include <numeric>
-#include <iostream>
-#include <boost/stacktrace.hpp>
 
 #include "arrow/util/checked_cast.h"
 #include "arrow/util/config.h"
@@ -127,13 +125,7 @@ class ConcreteFutureImpl : public FutureImpl {
       }
 #endif
 
-      if (IsFutureFinished(state_)) {
-        std::cout << stacktrace << std::endl;
-      }
       DCHECK(!IsFutureFinished(state_)) << "Future already marked finished (" << stateNames[static_cast<int8_t>(state_.load())] << ")";
-      // memorize backtrace of who marked this finished
-      stacktrace = boost::stacktrace::stacktrace();
-
       if (!callbacks_.empty()) {
         callbacks = std::move(callbacks_);
         auto self_inner = shared_from_this();
@@ -205,7 +197,6 @@ class ConcreteFutureImpl : public FutureImpl {
 
   std::mutex mutex_;
   std::condition_variable cv_;
-  boost::stacktrace::basic_stacktrace<> stacktrace;
 };
 
 namespace {
