@@ -34,8 +34,6 @@ namespace arrow {
 
 using internal::checked_cast;
 
-static const std::array<std::string, 3> stateNames = { "PENDING", "SUCCESS", "FAILURE" };
-
 class ConcreteFutureImpl : public FutureImpl {
  public:
   void DoMarkFinished() { DoMarkFinishedOrFailed(FutureState::SUCCESS); }
@@ -125,7 +123,7 @@ class ConcreteFutureImpl : public FutureImpl {
       }
 #endif
 
-      DCHECK(!IsFutureFinished(state_)) << "Future already marked finished (" << stateNames[static_cast<int8_t>(state_.load())] << ")";
+      DCHECK(!IsFutureFinished(state_)) << "Future already marked finished";
       if (!callbacks_.empty()) {
         callbacks = std::move(callbacks_);
         auto self_inner = shared_from_this();
