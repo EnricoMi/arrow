@@ -92,9 +92,9 @@
 
 constexpr int NUM_ROWS_PER_ROW_GROUP = 500;
 
-const char* kFooterEncryptionKey = "0123456789012345";  // 128bit/16
-const char* kColumnEncryptionKey1 = "1234567890123450";
-const char* kColumnEncryptionKey2 = "1234567890123451";
+const parquet::encryption::SecureString kFooterEncryptionKey("0123456789012345");
+const parquet::encryption::SecureString kColumnEncryptionKey1("1234567890123450");
+const parquet::encryption::SecureString kColumnEncryptionKey2("1234567890123451");
 const char* fileName = "tester";
 
 using FileClass = ::arrow::io::FileOutputStream;
@@ -342,7 +342,7 @@ void InteropTestWriteEncryptedParquetFiles(std::string root_path) {
       file_writer->Close();
 
       // Write the bytes to file
-      DCHECK(out_file->Close().ok());
+      ARROW_DCHECK(out_file->Close().ok());
     } catch (const std::exception& e) {
       std::cerr << "Parquet write error: " << e.what() << std::endl;
       return;
