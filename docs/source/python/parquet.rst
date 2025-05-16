@@ -741,24 +741,21 @@ An example encryption configuration:
 
 .. note::
 
-   Encrypting columns that have nested fields (struct, map or list data types)
-   requires column keys for the inner fields, not the outer column itself.
-   Configuring a column key for the outer column causes
-   this error (here the column name is ``col``):
+   Columns with nested fields (struct or map data types) can be encrypted as a whole, or only
+   individual fields. Configure an encryption key for the column name to encrypt all nested fields
+   with this key, or configure a key for individual fields.
 
-   .. code-block::
-
-      OSError: Encrypted column col not in file schema
+   Conventionally, the key and value fields of a map column ``m`` have the names ``m.key`` and
+   ``m.value``, respectively. An inner field ``f`` of a struct column ``s`` has the name ``s.f``.
 
 An example encryption configuration for columns with nested fields, where
-all columns will be encrypted with the same key identified by ``column_key_id``:
+all columns are encrypted with the same key identified by ``column_key_id``:
 
 .. code-block:: python
 
    import pyarrow.parquet.encryption as pe
 
    schema = pa.schema([
-     ("ListColumn", pa.list_(pa.int32())),
      ("MapColumn", pa.map_(pa.string(), pa.int32())),
      ("StructColumn", pa.struct([("f1", pa.int32()), ("f2", pa.string())])),
    ])
@@ -766,11 +763,26 @@ all columns will be encrypted with the same key identified by ``column_key_id``:
    encryption_config = pe.EncryptionConfiguration(
       footer_key="footer_key_name",
       column_keys={
-         "column_key_id": [
-           "ListColumn.list.element",
-           "MapColumn.key_value.key", "MapColumn.key_value.value",
-           "StructColumn.f1", "StructColumn.f2"
-         ],
+         "column_key_id": [ "MapColumn", "StructColumn" ],
+      },
+   )
+
+An example encryption configuration for columns with nested fields, where
+some inner fields are encrypted with the same key identified by ``column_key_id``:
+
+.. code-block:: python
+
+   import pyarrow.parquet.encryption as pe
+
+   schema = pa.schema([
+     ("MapColumn", pa.map_(pa.string(), pa.int32())),
+     ("StructColumn", pa.struct([("f1", pa.int32()), ("f2", pa.string())])),
+   ])
+
+   encryption_config = pe.EncryptionConfiguration(
+      footer_key="footer_key_name",
+      column_keys={
+         "column_key_id": [ "MapColumn.value", "StructColumn.f1" ],
       },
    )
 
@@ -782,3 +794,64 @@ file decryption properties) is optional and it includes the following options:
 
 * ``cache_lifetime``, the lifetime of cached entities (key encryption keys, local
   wrapping keys, KMS client objects) represented as a ``datetime.timedelta``.
+
+
+Content-Defined Chunking
+------------------------
+
+.. note::
+   This feature is experimental and may change in future releases.
+
+PyArrow introduces an experimental feature for optimizing Parquet files for content
+addressable storage (CAS) systems using content-defined chunking (CDC). This feature
+enables efficient deduplication of data across files, improving network transfers and
+storage efficiency.
+
+When enabled, data pages are written according to content-defined chunk boundaries,
+determined by a rolling hash algorithm that identifies chunk boundaries based on the
+actual content of the data. When data in a column is modified (e.g., inserted, deleted,
+or updated), this approach minimizes the number of changed data pages.
+
+The feature can be enabled by setting the ``use_content_defined_chunking`` parameter in
+the Parquet writer. It accepts either a boolean or a dictionary for configuration:
+
+- ``True``: Uses the default configuration with:
+   - Minimum chunk size: 256 KiB
+   - Maximum chunk size: 1024 KiB
+   - Normalization level: 0
+
+- ``dict``: Allows customization of the chunking parameters:
+   - ``min_chunk_size``: Minimum chunk size in bytes (default: 256 KiB).
+   - ``max_chunk_size``: Maximum chunk size in bytes (default: 1024 KiB).
+   - ``norm_level``: Normalization level to adjust chunk size distribution (default: 0).
+
+Note that the chunk size is calculated on the logical values before applying any encoding
+or compression. The actual size of the data pages may vary based on the encoding and
+compression used.
+
+.. note::
+   To make the most of this feature, you should ensure that Parquet write options
+   remain consistent across writes and files.
+   Using different write options (like compression, encoding, or row group size)
+   for different files may prevent proper deduplication and lead to suboptimal
+   storage efficiency.
+
+.. code-block:: python
+
+   import pyarrow as pa
+   import pyarrow.parquet as p
+
+   table = pa.Table.from_pandas(df)
+
+   # Enable content-defined chunking with default settings
+   pq.write_table(table, 'example.parquet', use_content_defined_chunking=True)
+
+   # Enable content-defined chunking with custom settings
+   pq.write_table(
+       table,
+       'example_custom.parquet',
+       use_content_defined_chunking={
+           'min_chunk_size': 128 * 1024,  # 128 KiB
+           'max_chunk_size': 512 * 1024,  # 512 KiB
+       }
+   )

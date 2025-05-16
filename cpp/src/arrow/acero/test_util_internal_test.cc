@@ -15,13 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Often-used headers, for precompiling.
-// If updating this header, please make sure you check compilation speed
-// before checking in.  Adding headers which are not used extremely often
-// may incur a slowdown, since it makes the precompiled header heavier to load.
+#include <gtest/gtest.h>
 
-// This API is EXPERIMENTAL.
+#include "arrow/acero/test_util_internal.h"
+#include "arrow/testing/gtest_util.h"
 
-#include "arrow/dataset/dataset.h"
-#include "arrow/dataset/scanner.h"
-#include "arrow/pch.h"
+namespace arrow::acero {
+
+TEST(RunEndEncodeTableColumnsTest, SchemaTypeIsModified) {
+  std::shared_ptr<Table> table =
+      arrow::TableFromJSON(arrow::schema({arrow::field("col", arrow::utf8())}), {R"([
+            {"col": "a"},
+            {"col": "b"},
+            {"col": "c"},
+            {"col": "d"}
+          ])"});
+  ASSERT_OK_AND_ASSIGN(std::shared_ptr<Table> ree_table,
+                       RunEndEncodeTableColumns(*table, {0}));
+  ASSERT_OK(ree_table->ValidateFull());
+  ASSERT_TRUE(ree_table->schema()->field(0)->type()->Equals(
+      arrow::run_end_encoded(arrow::int32(), arrow::utf8())));
+}
+}  // namespace arrow::acero

@@ -34,7 +34,7 @@
 #include "arrow/util/checked_cast.h"
 #include "arrow/util/future.h"
 #include "arrow/util/iterator.h"
-#include "arrow/util/logging.h"
+#include "arrow/util/logging_internal.h"
 #include "arrow/util/range.h"
 #include "arrow/util/tracing_internal.h"
 #include "parquet/arrow/reader.h"
@@ -132,6 +132,8 @@ parquet::ArrowReaderProperties MakeArrowReaderProperties(
   arrow_properties.set_io_context(
       parquet_scan_options.arrow_reader_properties->io_context());
   arrow_properties.set_use_threads(options.use_threads);
+  arrow_properties.set_arrow_extensions_enabled(
+      parquet_scan_options.arrow_reader_properties->get_arrow_extensions_enabled());
   return arrow_properties;
 }
 

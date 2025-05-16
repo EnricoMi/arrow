@@ -15,16 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Often-used headers, for precompiling.
-// If updating this header, please make sure you check compilation speed
-// before checking in.  Adding headers which are not used extremely often
-// may incur a slowdown, since it makes the precompiled header heavier to load.
+#pragma once
 
-#include "arrow/array.h"
-#include "arrow/buffer.h"
-#include "arrow/record_batch.h"
-#include "arrow/result.h"
-#include "arrow/status.h"
-#include "arrow/table.h"
-#include "arrow/type.h"
-#include "arrow/type_traits.h"
+#if defined(_WIN32) || defined(__CYGWIN__)
+#  if defined(_MSC_VER)
+#    pragma warning(push)
+#    pragma warning(disable : 4251)
+#  else
+#    pragma GCC diagnostic ignored "-Wattributes"
+#  endif
+
+#  ifdef ARROW_CUDA_STATIC
+#    define ARROW_CUDA_EXPORT
+#  elif defined(ARROW_CUDA_EXPORTING)
+#    define ARROW_CUDA_EXPORT __declspec(dllexport)
+#  else
+#    define ARROW_CUDA_EXPORT __declspec(dllimport)
+#  endif
+
+#  define ARROW_CUDA_NO_EXPORT
+
+#  if defined(_MSC_VER)
+#    pragma warning(pop)
+#  endif
+
+#else  // Not Windows
+#  ifndef ARROW_CUDA_EXPORT
+#    define ARROW_CUDA_EXPORT __attribute__((visibility("default")))
+#  endif
+#  ifndef ARROW_CUDA_NO_EXPORT
+#    define ARROW_CUDA_NO_EXPORT __attribute__((visibility("hidden")))
+#  endif
+#endif
