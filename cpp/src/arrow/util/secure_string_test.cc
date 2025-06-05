@@ -288,6 +288,7 @@ TEST(TestSecureString, Assign) {
   std::reverse(reverse_strings.begin(), reverse_strings.end());
 
   for (auto vec : {test_strings, reverse_strings}) {
+    std::cout << "next test strings" << std::endl;
     auto init_string = vec[0];
     auto strings = std::vector<std::string>(vec.begin() + 1, vec.end());
 
@@ -341,6 +342,7 @@ TEST(TestSecureString, Assign) {
       // move-assigning from a secure string securely clears that secure string
       // the earlier value of the secure string is securely cleared
       for (const auto& string : strings) {
+        std::cout << "assigning " << string << std::endl;
         auto string_copy = std::string(string);
         SecureString secret_string(std::move(string_copy));
         ASSERT_FALSE(string.empty());
@@ -352,7 +354,11 @@ TEST(TestSecureString, Assign) {
         auto old_secret_from_move_secret_value =
             std::string(secret_from_move_secret.as_view());
 
+        std::cout << "old secure string area before assignment: "
+                  << old_secret_from_move_secret_area << std::endl;
         secret_from_move_secret = std::move(secret_string);
+        std::cout << "old secure string area after assignment: "
+                  << old_secret_from_move_secret_area << std::endl;
 
         ASSERT_TRUE(secret_string.empty());
         auto secret_from_move_secret_view = secret_from_move_secret.as_view();
