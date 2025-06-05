@@ -35,7 +35,7 @@ std::string_view StringArea(const std::string& string) {
 #define COMPARE(val1, val2) \
   ::testing::internal::EqHelper::Compare(#val1, #val2, val1, val2)
 
-::testing::AssertionResult AssertSecurelyCleared(const std::string_view area) {
+::testing::AssertionResult AssertSecurelyCleared(const std::string_view& area) {
   // the entire area is filled with zeros
   std::string zeros(area.size(), '\0');
   return COMPARE(area, std::string_view(zeros));
@@ -48,7 +48,7 @@ std::string_view StringArea(const std::string& string) {
 /**
  * Checks the area has been securely cleared after some position.
  */
-::testing::AssertionResult AssertSecurelyCleared(const std::string_view area,
+::testing::AssertionResult AssertSecurelyCleared(const std::string_view& area,
                                                  const size_t pos) {
   // the area after pos is filled with zeros
   if (pos < area.size()) {
@@ -66,9 +66,9 @@ std::string_view StringArea(const std::string& string) {
  * at the right position, this will be false negative / flaky. Therefore, we check for
  * three consecutive secret characters before we fail.
  */
-::testing::AssertionResult AssertSecurelyCleared(const std::string_view area,
+::testing::AssertionResult AssertSecurelyCleared(const std::string_view& area,
                                                  const std::string& secret_value) {
-#if defined(ARROW_VALGRIND) || defined(ARROW_USE_ASAN)
+#if defined(ARROW_VALGRIND) || defined(ADDRESS_SANITIZER)
   return testing::AssertionSuccess() << "Not checking deallocated memory";
 #else
   // accessing deallocated memory will fail when running with  Address Sanitizer enabled
@@ -147,7 +147,7 @@ TEST(TestSecureString, AssertSecurelyCleared) {
             "    Which is: \"\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\"");
 
   ASSERT_TRUE(AssertSecurelyCleared(short_some_zeros, stars));
-#if !defined(ARROW_VALGRIND) && !defined(ARROW_USE_ASAN)
+#if !defined(ARROW_VALGRIND) && !defined(ADDRESS_SANITIZER)
   result = AssertSecurelyCleared(short_some_zeros_view, stars);
   ASSERT_FALSE(result);
   ASSERT_EQ(std::string(result.message()),
@@ -177,7 +177,7 @@ TEST(TestSecureString, AssertSecurelyCleared) {
             "0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\"");
 
   ASSERT_TRUE(AssertSecurelyCleared(long_some_zeros, stars));
-#if !defined(ARROW_VALGRIND) && !defined(ARROW_USE_ASAN)
+#if !defined(ARROW_VALGRIND) && !defined(ADDRESS_SANITIZER)
   result = AssertSecurelyCleared(long_some_zeros_view, stars);
   ASSERT_FALSE(result);
   ASSERT_EQ(std::string(result.message()),
@@ -442,7 +442,7 @@ TEST(TestSecureString, Assign) {
 }
 
 TEST(TestSecureString, Deconstruct) {
-#if defined(ARROW_VALGRIND) || defined(ARROW_USE_ASAN)
+#if defined(ARROW_VALGRIND) || defined(ADDRESS_SANITIZER)
   GTEST_SKIP() << "Test accesses deallocated memory";
 #else
   // We use a very short and a very long string as memory management of short and long
