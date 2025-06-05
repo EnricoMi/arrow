@@ -19,11 +19,11 @@
 #include <algorithm>
 #include <vector>
 
-#include "arrow/util/secure_string.h"
+#include <iomanip>
 #include <iostream>
 #include <sstream>
-#include <iomanip>
 #include <string>
+#include "arrow/util/secure_string.h"
 
 namespace arrow::util::test {
 
@@ -189,7 +189,7 @@ TEST(TestSecureString, AssertSecurelyCleared) {
   // check string with non-zeros and zeros after string length
   auto some_zeros_back = std::string(no_zeros.length() + 3, '\0');
   some_zeros_back = no_zeros;
-  memset(some_zeros_back.data() + no_zeros.length() * sizeof(char), '\0', 3+1);
+  memset(some_zeros_back.data() + no_zeros.length() * sizeof(char), '\0', 3 + 1);
   // string buffer in some_zeros_back can be larger than no_zeros.length() + 3
   // assert only the area that we can control
   auto some_zeros_back_view =
@@ -272,8 +272,8 @@ TEST(TestSecureString, Assign) {
   // We initialize with the first string and iteratively assign the subsequent values.
   // The first two values are local (very short strings), the remainder are non-local
   // strings. Memory management of short and long strings behaves differently.
-  std::vector<std::string> test_strings = {
-      "secret", "another secret", std::string(128, 'x'), std::string(1024, 'y')};
+  std::vector<std::string> test_strings = {"secret", "another secret",
+                                           std::string(128, 'x'), std::string(1024, 'y')};
 
   std::vector<std::string> reverse_strings = std::vector(test_strings);
   std::reverse(reverse_strings.begin(), reverse_strings.end());
@@ -292,7 +292,8 @@ TEST(TestSecureString, Assign) {
       // the earlier value of the secure string is securely cleared
       std::cout << "move-assigning from a string" << std::endl;
       for (const auto& string : strings) {
-        std::cout << "assigning '" << string << "' (" << stringToHex(string) << ")" << std::endl;
+        std::cout << "assigning '" << string << "' (" << stringToHex(string) << ") ["
+                  << stringToHex(StringArea(string)) << "]" << std::endl;
         auto string_copy = std::string(string);
         auto old_string_copy_area = StringArea(string_copy);
         ASSERT_FALSE(string.empty());
@@ -302,13 +303,21 @@ TEST(TestSecureString, Assign) {
 
         std::cout << "old secure string area before assignment: "
                   << stringToHex(old_secret_from_string_area) << std::endl;
-        std::cout << "secret string data: " << static_cast<const void*>(secret_from_string.as_view().data()) << std::endl;
-        std::cout << "old secret string view data: " << static_cast<const void*>(old_secret_from_string_area.data()) << std::endl;
+        std::cout << "secret string data: "
+                  << static_cast<const void*>(secret_from_string.as_view().data())
+                  << std::endl;
+        std::cout << "old secret string view data: "
+                  << static_cast<const void*>(old_secret_from_string_area.data())
+                  << std::endl;
         secret_from_string = std::move(string_copy);
         std::cout << "old secure string area after assignment: "
                   << stringToHex(old_secret_from_string_area) << std::endl;
-        std::cout << "secret string data: " << static_cast<const void*>(secret_from_string.as_view().data()) << std::endl;
-        std::cout << "old secret string view data: " << static_cast<const void*>(old_secret_from_string_area.data()) << std::endl;
+        std::cout << "secret string data: "
+                  << static_cast<const void*>(secret_from_string.as_view().data())
+                  << std::endl;
+        std::cout << "old secret string view data: "
+                  << static_cast<const void*>(old_secret_from_string_area.data())
+                  << std::endl;
 
         ASSERT_FALSE(string.empty());
         ASSERT_TRUE(string_copy.empty());
