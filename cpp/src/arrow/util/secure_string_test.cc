@@ -168,7 +168,16 @@ TEST(TestSecureString, AssertSecurelyCleared) {
 
   // check string with zeros and non-zeros after string length
   auto some_zeros_front = no_zeros;
-  some_zeros_front = std::string(no_zeros.length() - 3, '\0');
+  auto many_zeros = std::string(no_zeros.length() - 3, '\0');
+  std::cout << "some_zeros_front data: " << some_zeros_front.data() << std::endl;
+  std::cout << "some_zeros_front size: " << some_zeros_front.size() << std::endl;
+  std::cout << "some_zeros_front capacity: " << some_zeros_front.capacity() << std::endl;
+  std::cout << "many_zeros capacity: " << many_zeros.capacity() << std::endl;
+  std::cout << "many_zeros size: " << many_zeros.size() << std::endl;
+  some_zeros_front = many_zeros;
+  std::cout << "some_zeros_front data: " << some_zeros_front.data() << std::endl;
+  std::cout << "some_zeros_front size: " << some_zeros_front.size() << std::endl;
+  std::cout << "some_zeros_front capacity: " << some_zeros_front.capacity() << std::endl;
   // string buffer in some_zeros_front can be larger than no_zeros.length() - 3
   // assert only the area that we can control
   auto some_zeros_fronts_view =
@@ -282,7 +291,7 @@ TEST(TestSecureString, Assign) {
   // The first two values are local (very short strings), the remainder are non-local
   // strings. Memory management of short and long strings behaves differently.
   std::vector<std::string> test_strings = {
-      "secret", "another secret", "a much longer secret", std::string(1024, 'x')};
+      "secret", "another secret", std::string(128, 'y'), std::string(1024, 'y')};
 
   std::vector<std::string> reverse_strings = std::vector(test_strings);
   std::reverse(reverse_strings.begin(), reverse_strings.end());
@@ -299,7 +308,9 @@ TEST(TestSecureString, Assign) {
 
       // move-assigning from a string securely clears that string
       // the earlier value of the secure string is securely cleared
+      std::cout << "move-assigning from a string" << std::endl;
       for (const auto& string : strings) {
+        std::cout << "assigning " << string << std::endl;
         auto string_copy = std::string(string);
         auto old_string_copy_area = StringArea(string_copy);
         ASSERT_FALSE(string.empty());
@@ -307,7 +318,11 @@ TEST(TestSecureString, Assign) {
         auto old_secret_from_string_area = secret_from_string.as_view();
         auto old_secret_from_string_value = std::string(secret_from_string.as_view());
 
+        std::cout << "old secure string area before assignment: "
+                  << old_secret_from_string_area << std::endl;
         secret_from_string = std::move(string_copy);
+        std::cout << "old secure string area after assignment: "
+                  << old_secret_from_string_area << std::endl;
 
         ASSERT_FALSE(string.empty());
         ASSERT_TRUE(string_copy.empty());
@@ -341,6 +356,7 @@ TEST(TestSecureString, Assign) {
 
       // move-assigning from a secure string securely clears that secure string
       // the earlier value of the secure string is securely cleared
+      std::cout << "move-assigning from a secure string" << std::endl;
       for (const auto& string : strings) {
         std::cout << "assigning " << string << std::endl;
         auto string_copy = std::string(string);
@@ -390,9 +406,10 @@ TEST(TestSecureString, Assign) {
       std::string init_string_copy(init_string);
       SecureString secret_from_copy_secret(std::move(init_string_copy));
 
+      // copy-assigning from a secure string does not modify that secure string
+      // the earlier value of the secure string is securely cleared
+      std::cout << "copy-assigning from a secure string" << std::endl;
       for (const auto& string : strings) {
-        // copy-assigning from a secure string does not modify that secure string
-        // the earlier value of the secure string is securely cleared
         auto string_copy = std::string(string);
         SecureString secret_string(std::move(string_copy));
         ASSERT_FALSE(string.empty());
