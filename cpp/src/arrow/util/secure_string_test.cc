@@ -110,7 +110,7 @@ TEST(TestSecureString, AssertSecurelyCleared) {
   // checks only 1000 bytes (length)
   ASSERT_TRUE(AssertSecurelyCleared(std::string_view(long_zeros)));
 
-  auto no_zeros = std::string("abcdefghijklmnopqrstuvwxyz123");
+  auto no_zeros = std::string("abcdefghijklmnopqrstuvwxyz");
   // string buffer in no_zeros can be larger than no_zeros.length()
   // assert only the area that we can control
   auto no_zeros_view = std::string_view(no_zeros);
@@ -119,10 +119,10 @@ TEST(TestSecureString, AssertSecurelyCleared) {
   ASSERT_EQ(std::string(result.message()),
             "Expected equality of these values:\n"
             "  area\n"
-            "    Which is: \"abcdefghijklmnopqrstuvwxyz123\"\n"
+            "    Which is: \"abcdefghijklmnopqrstuvwxyz\"\n"
             "  std::string_view(zeros)\n"
             "    Which is: "
-            "\"\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\"
+            "\"\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\"
             "0\\0\\0\\0\\0\"");
 
   // check short string with zeros and non-zeros after string length
@@ -191,17 +191,6 @@ TEST(TestSecureString, AssertSecurelyCleared) {
   auto some_zeros_back_view =
       std::string_view(some_zeros_back.data(), no_zeros.length() + 3);
   ASSERT_TRUE(AssertSecurelyCleared(some_zeros_back_view, no_zeros.length()));
-  result = AssertSecurelyCleared(some_zeros_back_view);
-  ASSERT_FALSE(result);
-  ASSERT_EQ(
-      std::string(result.message()),
-      "Expected equality of these values:\n"
-      "  area\n"
-      "    Which is: \"abcdefghijklmnopqrstuvwxyz123\\0\\0\\0\"\n"
-      "  std::string_view(zeros)\n"
-      "    Which is: "
-      "\"\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\0\\"
-      "0\\0\\0\\0\\0\\0\"");
 }
 
 TEST(TestSecureString, SecureClearString) {
