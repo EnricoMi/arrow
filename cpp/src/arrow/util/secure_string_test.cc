@@ -274,6 +274,16 @@ TEST(TestSecureString, Assign) {
   // strings. Memory management of short and long strings behaves differently.
   std::vector<std::string> test_strings = {"secret", "another secret",
                                            std::string(128, 'x'), std::string(1024, 'y')};
+  for (auto& string : test_strings) {
+    // string buffer might be longer than string.length with arbitrary bytes
+    // secure string does not have to protect that garbage bytes
+    // zeroing here so we get expected results
+    std::cout << "test string: " << stringToHex(string) << std::endl;
+    auto length = string.length();
+    string.resize(string.capacity(), '\0');
+    string.resize(length);
+    std::cout << "fixed test string: " << stringToHex(string) << std::endl;
+  }
 
   std::vector<std::string> reverse_strings = std::vector(test_strings);
   std::reverse(reverse_strings.begin(), reverse_strings.end());
