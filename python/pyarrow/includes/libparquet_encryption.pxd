@@ -18,6 +18,7 @@
 # distutils: language = c++
 
 from pyarrow.includes.common cimport *
+from pyarrow.includes.libarrow cimport CSecureString
 from pyarrow._parquet cimport (ParquetCipher,
                                CFileEncryptionProperties,
                                CFileDecryptionProperties,
@@ -49,9 +50,9 @@ cdef extern from "parquet/encryption/kms_client.h" \
 # Callbacks for implementing Python kms clients
 # Use typedef to emulate syntax for std::function<void(..)>
 ctypedef void CallbackWrapKey(
-    object, const c_string&, const c_string&, c_string*)
+    object, const CSecureString&, const c_string&, c_string*)
 ctypedef void CallbackUnwrapKey(
-    object, const c_string&, const c_string&, c_string*)
+    object, const c_string&, const c_string&, CSecureString*)
 
 cdef extern from "parquet/encryption/kms_client_factory.h" \
         namespace "parquet::encryption" nogil:
