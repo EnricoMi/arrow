@@ -720,10 +720,18 @@ if needs_filesystem
     subdir('filesystem')
 endif
 
+if needs_flight
+    subdir('flight')
+endif
+
 if needs_json
     subdir('json')
 endif
 
 if needs_ipc
     subdir('ipc')
+endif
+
+if get_option('tensorflow').enabled()
+    subdir('adapters/tensorflow')
 endif
