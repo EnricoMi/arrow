@@ -300,7 +300,7 @@ cdef class KmsConnectionConfig(_Weakrefable):
 
 # Callback definitions for CPyKmsClientVtable
 cdef void _cb_wrap_key(
-        handler, const c_string& key_bytes,
+        handler, const SecureString& key_bytes,
         const c_string& master_key_identifier, c_string* out) except *:
     mkid_str = frombytes(master_key_identifier)
     wrapped_key = handler.wrap_key(key_bytes, mkid_str)
@@ -309,11 +309,17 @@ cdef void _cb_wrap_key(
 
 cdef void _cb_unwrap_key(
         handler, const c_string& wrapped_key,
-        const c_string& master_key_identifier, c_string* out) except *:
+        const c_string& master_key_identifier, SecureString* out) except *:
     mkid_str = frombytes(master_key_identifier)
     wk_str = frombytes(wrapped_key)
     key = handler.unwrap_key(wk_str, mkid_str)
     out[0] = tobytes(key)
+
+
+cdef class SecureString(_Weakrefable):
+    """A secure string implementations."""
+    cdef:
+        shared_ptr[CSecureString] string
 
 
 cdef class KmsClient(_Weakrefable):
