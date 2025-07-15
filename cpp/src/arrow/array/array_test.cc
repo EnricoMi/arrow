@@ -815,6 +815,23 @@ TEST_F(TestArray, TestMakeArrayFromMapScalar) {
   AssertAppendScalar(pool_, std::make_shared<MapScalar>(scalar));
 }
 
+TEST_F(TestArray, TestMakeArrayFromScalarSmallintExtensionType) {
+  auto ext_type = std::make_shared<SmallintType>();
+  auto storage_scalar = std::make_shared<Int16Scalar>(42);
+  auto ext_scalar = std::make_shared<ExtensionScalar>(storage_scalar, ext_type);
+
+  ASSERT_OK_AND_ASSIGN(auto arr, MakeArrayFromScalar(*ext_scalar, 3));
+  ASSERT_EQ(arr->type()->id(), Type::EXTENSION);
+  ASSERT_EQ(arr->length(), 3);
+
+  auto ext_arr = std::static_pointer_cast<ExtensionArray>(arr);
+  ASSERT_EQ(ext_arr->storage()->type_id(), Type::INT16);
+  auto int_arr = std::static_pointer_cast<Int16Array>(ext_arr->storage());
+  for (int i = 0; i < 3; ++i) {
+    ASSERT_EQ(int_arr->Value(i), 42);
+  }
+}
+
 void CheckSpanRoundTrip(const Array& array) {
   ArraySpan span;
   span.SetMembers(*array.data());
@@ -2052,6 +2069,24 @@ void CheckApproxEquals() {
 }
 
 template <typename TYPE>
+void CheckFloatApproxEqualsWithAtol() {
+  using c_type = typename TYPE::c_type;
+  auto type = TypeTraits<TYPE>::type_singleton();
+  std::shared_ptr<Array> a, b;
+  ArrayFromVector<TYPE>(type, {true}, {static_cast<c_type>(0.5)}, &a);
+  ArrayFromVector<TYPE>(type, {true}, {static_cast<c_type>(0.6)}, &b);
+  auto options = EqualOptions::Defaults().atol(0.2);
+
+  ASSERT_FALSE(a->Equals(b));
+  ASSERT_TRUE(a->Equals(b, options.use_atol(true)));
+  ASSERT_TRUE(a->ApproxEquals(b, options));
+
+  ASSERT_FALSE(a->RangeEquals(0, 1, 0, b, options));
+  ASSERT_TRUE(a->RangeEquals(0, 1, 0, b, options.use_atol(true)));
+  ASSERT_TRUE(ArrayRangeApproxEquals(*a, *b, 0, 1, 0, options));
+}
+
+template <typename TYPE>
 void CheckSliceApproxEquals() {
   using T = typename TYPE::c_type;
 
@@ -2253,6 +2288,11 @@ void CheckFloatingZeroEquality() {
 TEST(TestPrimitiveAdHoc, FloatingApproxEquals) {
   CheckApproxEquals<FloatType>();
   CheckApproxEquals<DoubleType>();
+}
+
+TEST(TestPrimitiveAdHoc, FloatingApproxEqualsWithAtol) {
+  CheckFloatApproxEqualsWithAtol<FloatType>();
+  CheckFloatApproxEqualsWithAtol<DoubleType>();
 }
 
 TEST(TestPrimitiveAdHoc, FloatingSliceApproxEquals) {
@@ -3857,6 +3897,7 @@ class TestArrayDataStatistics : public ::testing::Test {
   void SetUp() {
     valids_ = {1, 0, 1, 1};
     null_count_ = std::count(valids_.begin(), valids_.end(), 0);
+    average_byte_width_ = 4.0;
     null_buffer_ = *internal::BytesToBits(valids_);
     values_ = {1, 0, 3, -4};
     min_ = *std::min_element(values_.begin(), values_.end());
@@ -3866,6 +3907,8 @@ class TestArrayDataStatistics : public ::testing::Test {
                             null_count_);
     data_->statistics = std::make_shared<ArrayStatistics>();
     data_->statistics->null_count = null_count_;
+    data_->statistics->average_byte_width = average_byte_width_;
+    data_->statistics->is_average_byte_width_exact = true;
     data_->statistics->min = min_;
     data_->statistics->is_min_exact = true;
     data_->statistics->max = max_;
@@ -3875,6 +3918,7 @@ class TestArrayDataStatistics : public ::testing::Test {
  protected:
   std::vector<uint8_t> valids_;
   size_t null_count_;
+  double average_byte_width_;
   std::shared_ptr<Buffer> null_buffer_;
   std::vector<int32_t> values_;
   int64_t min_;
@@ -3889,6 +3933,11 @@ TEST_F(TestArrayDataStatistics, MoveConstructor) {
 
   ASSERT_TRUE(moved_data.statistics->null_count.has_value());
   ASSERT_EQ(null_count_, moved_data.statistics->null_count.value());
+
+  ASSERT_TRUE(moved_data.statistics->average_byte_width.has_value());
+  ASSERT_DOUBLE_EQ(average_byte_width_,
+                   moved_data.statistics->average_byte_width.value());
+  ASSERT_TRUE(moved_data.statistics->is_average_byte_width_exact);
 
   ASSERT_TRUE(moved_data.statistics->min.has_value());
   ASSERT_TRUE(std::holds_alternative<int64_t>(moved_data.statistics->min.value()));
@@ -3906,6 +3955,11 @@ TEST_F(TestArrayDataStatistics, CopyConstructor) {
 
   ASSERT_TRUE(copied_data.statistics->null_count.has_value());
   ASSERT_EQ(null_count_, copied_data.statistics->null_count.value());
+
+  ASSERT_TRUE(copied_data.statistics->average_byte_width.has_value());
+  ASSERT_DOUBLE_EQ(average_byte_width_,
+                   copied_data.statistics->average_byte_width.value());
+  ASSERT_TRUE(copied_data.statistics->is_average_byte_width_exact);
 
   ASSERT_TRUE(copied_data.statistics->min.has_value());
   ASSERT_TRUE(std::holds_alternative<int64_t>(copied_data.statistics->min.value()));
@@ -3926,6 +3980,11 @@ TEST_F(TestArrayDataStatistics, MoveAssignment) {
   ASSERT_TRUE(moved_data.statistics->null_count.has_value());
   ASSERT_EQ(null_count_, moved_data.statistics->null_count.value());
 
+  ASSERT_TRUE(moved_data.statistics->average_byte_width.has_value());
+  ASSERT_DOUBLE_EQ(average_byte_width_,
+                   moved_data.statistics->average_byte_width.value());
+  ASSERT_TRUE(moved_data.statistics->is_average_byte_width_exact);
+
   ASSERT_TRUE(moved_data.statistics->min.has_value());
   ASSERT_TRUE(std::holds_alternative<int64_t>(moved_data.statistics->min.value()));
   ASSERT_EQ(min_, std::get<int64_t>(moved_data.statistics->min.value()));
@@ -3943,6 +4002,11 @@ TEST_F(TestArrayDataStatistics, CopyAssignment) {
 
   ASSERT_TRUE(copied_data.statistics->null_count.has_value());
   ASSERT_EQ(null_count_, copied_data.statistics->null_count.value());
+
+  ASSERT_TRUE(copied_data.statistics->average_byte_width.has_value());
+  ASSERT_DOUBLE_EQ(average_byte_width_,
+                   copied_data.statistics->average_byte_width.value());
+  ASSERT_TRUE(copied_data.statistics->is_average_byte_width_exact);
 
   ASSERT_TRUE(copied_data.statistics->min.has_value());
   ASSERT_TRUE(std::holds_alternative<int64_t>(copied_data.statistics->min.value()));
