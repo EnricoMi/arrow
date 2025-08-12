@@ -20,6 +20,7 @@ from datetime import timedelta
 import random
 import pyarrow.fs as fs
 import pyarrow as pa
+from pyarrow.lib import SecureString
 
 import pytest
 
@@ -177,13 +178,13 @@ def test_large_row_encryption_decryption():
     """Test encryption and decryption of a large number of rows."""
 
     class NoOpKmsClient(pe.KmsClient):
-        def wrap_key(self, key_bytes: bytes, _: str) -> bytes:
-            b = base64.b64encode(key_bytes)
+        def wrap_key(self, key: SecureString, _: str) -> bytes:
+            b = base64.b64encode(key.to_bytes())
             return b
 
         def unwrap_key(self, wrapped_key: bytes, _: str) -> bytes:
             b = base64.b64decode(wrapped_key)
-            return b
+            return SecureString(b)
 
     row_count = 2**15 + 1
     table = pa.Table.from_arrays(

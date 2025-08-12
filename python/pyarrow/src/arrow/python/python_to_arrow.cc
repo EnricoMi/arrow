@@ -1301,5 +1301,14 @@ Result<std::shared_ptr<ChunkedArray>> ConvertPySequence(PyObject* obj, PyObject*
   }
 }
 
+Result<std::shared_ptr<arrow::util::SecureString>> CreateSecureString(PyObject* str) {
+  if (str == nullptr) {
+    return std::make_shared<arrow::util::SecureString>(0, '\0');
+  }
+  ARROW_ASSIGN_OR_RAISE(auto view, PyBytesView::FromString(str));
+  std::string cstr(view.bytes);
+  return std::make_shared<arrow::util::SecureString>(std::move(cstr));
+}
+
 }  // namespace py
 }  // namespace arrow

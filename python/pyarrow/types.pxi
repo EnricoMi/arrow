@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from Cython.Includes.libc.string cimport memcpy
+from Cython.Includes.libcpp.memory cimport shared_ptr
 from cpython.pycapsule cimport (
     PyCapsule_CheckExact,
     PyCapsule_GetPointer,
@@ -30,6 +32,8 @@ import re
 import sys
 import warnings
 from cython import sizeof
+
+from pyarrow.includes.libarrow cimport CSecureString
 
 # These are imprecise because the type (in pandas 0.x) depends on the presence
 # of nulls
@@ -6100,3 +6104,40 @@ cdef object alloc_c_device_array(ArrowDeviceArray** c_array):
     c_array[0].array.release = NULL
     return PyCapsule_New(
         c_array[0], 'arrow_device_array', &pycapsule_device_array_deleter)
+
+
+cdef class SecureString(_Weakrefable):
+    """A secure string implementations."""
+    def __init__(self, *, string=None):
+        cdef:
+            c_string cstr
+
+        if string is not None:
+            print(f"Create SecureString from '{string}'")
+            cstr = tobytes(string)
+            print(f"cstr: '{cstr}'")
+            print(f"cstr.length: '{cstr.length()}'")
+            print(f"new CSecureString: {new CSecureString(cstr.length(), 0)}")
+            self.wrapped = shared_ptr[CSecureString](new CSecureString(cstr.length(), 0))
+            print(f"wrapped: {self.wrapped}")
+            print(f"copy from {cstr.data()} to {self.wrapped.get().as_view().data()} {cstr.length} bytes")
+            memcpy(cstr.data(), self.wrapped.get().as_view().data(), cstr.length())
+            print("copied")
+        else:
+            self.wrapped = shared_ptr[CSecureString](new CSecureString(0, 0))
+
+    cdef void init(self, shared_ptr[CSecureString] securestring):
+        self.wrapped = securestring
+
+    cdef inline shared_ptr[CSecureString] unwrap(self):
+        return self.wrapped
+
+    @staticmethod
+    cdef wrap(shared_ptr[CSecureString] securestring):
+        self = SecureString()
+        self.init(securestring)
+        return self
+
+    def to_bytes(self) -> bytes:
+        print(f"providing secure bytes: {self.wrapped.get().as_view()}")
+        return self.wrapped.get().as_view()

@@ -53,7 +53,7 @@ class VaultClient(pe.KmsClient):
             VaultClient.DEFAULT_TRANSIT_ENGINE
         self.kms_connection_config = kms_connection_config
 
-    def wrap_key(self, key_bytes, master_key_identifier):
+    def wrap_key(self, key, master_key_identifier):
         """Call Vault to wrap key key_bytes with key
         identified by master_key_identifier."""
         endpoint = self.kms_url + VaultClient.WRAP_ENDPOINT
@@ -61,7 +61,7 @@ class VaultClient(pe.KmsClient):
                    self.kms_connection_config.key_access_token}
         r = requests.post(endpoint + master_key_identifier,
                           headers=headers,
-                          data={'plaintext': base64.b64encode(key_bytes)})
+                          data={'plaintext': base64.b64encode(key.to_bytes())})
         r.raise_for_status()
         r_dict = r.json()
         wrapped_key = r_dict['data']['ciphertext']
@@ -80,7 +80,7 @@ class VaultClient(pe.KmsClient):
         r_dict = r.json()
         plaintext = r_dict['data']['plaintext']
         key_bytes = base64.b64decode(plaintext)
-        return key_bytes
+        return pa.lib.SecureString(key_bytes)
 
 
 def parquet_write_read_with_vault(parquet_filename):

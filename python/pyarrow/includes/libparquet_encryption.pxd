@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+from Cython.Includes.libcpp.memory import shared_ptr
 # distutils: language = c++
 
 from pyarrow.includes.common cimport *
@@ -29,9 +29,9 @@ from pyarrow._parquet cimport (ParquetCipher,
 cdef extern from "parquet/encryption/kms_client.h" \
         namespace "parquet::encryption" nogil:
     cdef cppclass CKmsClient" parquet::encryption::KmsClient":
-        c_string WrapKey(const c_string& key_bytes,
+        c_string WrapKey(const CSecureString& key_bytes,
                          const c_string& master_key_identifier) except +
-        c_string UnwrapKey(const c_string& wrapped_key,
+        CSecureString UnwrapKey(const c_string& wrapped_key,
                            const c_string& master_key_identifier) except +
 
     cdef cppclass CKeyAccessToken" parquet::encryption::KeyAccessToken":
@@ -52,7 +52,7 @@ cdef extern from "parquet/encryption/kms_client.h" \
 ctypedef void CallbackWrapKey(
     object, const CSecureString&, const c_string&, c_string*)
 ctypedef void CallbackUnwrapKey(
-    object, const c_string&, const c_string&, CSecureString*)
+    object, const c_string&, const c_string&, shared_ptr[CSecureString]*)
 
 cdef extern from "parquet/encryption/kms_client_factory.h" \
         namespace "parquet::encryption" nogil:

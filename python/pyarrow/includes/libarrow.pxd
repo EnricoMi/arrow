@@ -3131,9 +3131,10 @@ cdef extern from "arrow/util/iterator.h" namespace "arrow" nogil:
     CIterator[T] MakeVectorIterator[T](vector[T] v)
 
 
-cdef extern from "arrow/util/secure_string.h" namespace "arrow::util" nogil:
+cdef extern from "arrow/util/secure_string.h" namespace "arrow" nogil:
     cdef cppclass CSecureString" arrow::util::SecureString":
-        pass
+        CSecureString(size_t n, char c)
+        cpp_string_view as_view()
 
 
 cdef extern from "arrow/util/thread_pool.h" namespace "arrow" nogil:

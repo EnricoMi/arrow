@@ -24,6 +24,7 @@ from cython.operator cimport dereference as deref
 
 from pyarrow.includes.common cimport *
 from pyarrow.includes.libarrow cimport *
+from pyarrow.lib cimport *
 from pyarrow.lib cimport _Weakrefable
 from pyarrow.lib import tobytes, frombytes
 
@@ -300,26 +301,22 @@ cdef class KmsConnectionConfig(_Weakrefable):
 
 # Callback definitions for CPyKmsClientVtable
 cdef void _cb_wrap_key(
-        handler, const SecureString& key_bytes,
+        handler, const CSecureString& key,
         const c_string& master_key_identifier, c_string* out) except *:
     mkid_str = frombytes(master_key_identifier)
-    wrapped_key = handler.wrap_key(key_bytes, mkid_str)
+    wrapped_key = handler.wrap_key(SecureString.wrap(key), mkid_str)
     out[0] = tobytes(wrapped_key)
 
 
 cdef void _cb_unwrap_key(
         handler, const c_string& wrapped_key,
-        const c_string& master_key_identifier, SecureString* out) except *:
+        const c_string& master_key_identifier, shared_ptr[CSecureString]* out) except *:
     mkid_str = frombytes(master_key_identifier)
     wk_str = frombytes(wrapped_key)
     key = handler.unwrap_key(wk_str, mkid_str)
-    out[0] = tobytes(key)
-
-
-cdef class SecureString(_Weakrefable):
-    """A secure string implementations."""
     cdef:
-        shared_ptr[CSecureString] string
+      shared_ptr[CSecureString] css = (<SecureString> key).unwrap()
+    out = &css
 
 
 cdef class KmsClient(_Weakrefable):
@@ -339,7 +336,7 @@ cdef class KmsClient(_Weakrefable):
 
         self.client.reset(new CPyKmsClient(self, vtable))
 
-    def wrap_key(self, key_bytes, master_key_identifier):
+    def wrap_key(self, key, master_key_identifier):
         """Wrap a key - encrypt it with the master key."""
         raise NotImplementedError()
 

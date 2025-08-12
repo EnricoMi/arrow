@@ -62,7 +62,7 @@ class ARROW_PYTHON_PARQUET_ENCRYPTION_EXPORT PyKmsClientVtable {
       wrap_key;
   std::function<void(PyObject*, const std::string& wrapped_key,
                      const std::string& master_key_identifier,
-                     ::arrow::util::SecureString* out)>
+                     std::shared_ptr<::arrow::util::SecureString>* out)>
       unwrap_key;
 };
 
@@ -73,7 +73,7 @@ class ARROW_PYTHON_PARQUET_ENCRYPTION_EXPORT PyKmsClient
   PyKmsClient(PyObject* handler, PyKmsClientVtable vtable);
   ~PyKmsClient() override;
 
-  std::string WrapKey(const ::arrow::util::SecureString& key_bytes,
+  std::string WrapKey(const ::arrow::util::SecureString& key,
                       const std::string& master_key_identifier) override;
 
   ::arrow::util::SecureString UnwrapKey(

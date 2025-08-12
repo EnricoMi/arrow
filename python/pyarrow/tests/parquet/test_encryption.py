@@ -329,7 +329,7 @@ def test_encrypted_parquet_write_kms_specific_error(tempdir, data_table,
             pe.KmsClient.__init__(self)
             self.config = config
 
-        def wrap_key(self, key_bytes, master_key_identifier):
+        def wrap_key(self, key, master_key_identifier):
             raise ValueError("Cannot Wrap Key")
 
         def unwrap_key(self, wrapped_key, master_key_identifier):
@@ -383,7 +383,7 @@ def test_encrypted_parquet_write_kms_factory_type_error(
         def __init__(self, config):
             self.master_keys_map = config.custom_kms_conf
 
-        def wrap_key(self, key_bytes, master_key_identifier):
+        def wrap_key(self, key, master_key_identifier):
             return None
 
         def unwrap_key(self, wrapped_key, master_key_identifier):
