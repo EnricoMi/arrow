@@ -28,7 +28,6 @@
 #include "arrow/python/visibility.h"
 #include "arrow/type.h"
 #include "arrow/util/macros.h"
-#include "arrow/util/secure_string.h"
 
 #include "arrow/python/common.h"
 
@@ -75,12 +74,6 @@ ARROW_PYTHON_EXPORT
 Result<std::shared_ptr<ChunkedArray>> ConvertPySequence(
     PyObject* obj, PyObject* mask, PyConversionOptions options,
     MemoryPool* pool = default_memory_pool());
-
-/// \brief Create a SecureString from a string.
-/// In C++, this is only allowed for std::string&&, which is not supported by CPython.
-/// Hence, we provide a const std::string& implementation for CPython here.
-ARROW_PYTHON_EXPORT
-Result<std::shared_ptr<arrow::util::SecureString>> CreateSecureString(PyObject* str);
 
 }  // namespace py
 

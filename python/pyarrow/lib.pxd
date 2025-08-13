@@ -649,19 +649,6 @@ cdef class StopToken:
     cdef void init(self, CStopToken stop_token)
 
 
-cdef class SecureString(_Weakrefable):
-    """A secure string implementations."""
-    cdef:
-        shared_ptr[CSecureString] wrapped
-
-    cdef void init(self, shared_ptr[CSecureString] securestring)
-
-    cdef inline shared_ptr[CSecureString] unwrap(self)
-
-    @staticmethod
-    cdef wrap(shared_ptr[CSecureString] securestring)
-
-
 cdef get_input_stream(object source, c_bool use_memory_map,
                       shared_ptr[CInputStream]* reader)
 cdef get_reader(object source, c_bool use_memory_map,
