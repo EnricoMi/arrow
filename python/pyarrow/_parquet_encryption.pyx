@@ -25,7 +25,6 @@ from cython.operator cimport dereference as deref
 from pyarrow.includes.common cimport *
 from pyarrow.includes.libarrow cimport *
 
-from pyarrow.lib cimport *
 from pyarrow.lib cimport _Weakrefable
 from pyarrow.lib import tobytes, frombytes
 
@@ -315,7 +314,6 @@ cdef void _cb_wrap_key(
     key_bytes = PyObject_to_object(PyBytes_FromStringAndSizeNative(view.data(), view.size()))
     mkid_str = frombytes(master_key_identifier)
     wrapped_key = handler.wrap_key(key_bytes, mkid_str)
-    #print(f"wrapping key {key_bytes} for key id {mkid_str}: {wrapped_key}")
     out[0] = tobytes(wrapped_key)
 
 
@@ -330,10 +328,6 @@ cdef void _cb_unwrap_key(
         c_string cstr = tobytes(key)
         shared_ptr[CSecureString] css = shared_ptr[CSecureString](new CSecureString(move(cstr)))
 
-    #cdef:
-    #    cpp_string_view view = css.get().as_view()
-    #memcpy(view.data(), cstr.data(), cstr.length())
-    #print(f"unwrapping key {wk_str} for key id {mkid_str}: key={key} cstr={frombytes(cstr)} view={PyObject_to_object(PyBytes_FromStringAndSizeNative(view.data(), view.size()))} ({cstr.length()})")
     out[0] = css
 
 

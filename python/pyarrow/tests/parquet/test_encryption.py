@@ -18,10 +18,15 @@ import pytest
 from datetime import timedelta
 
 import pyarrow as pa
-import pyarrow.parquet as pq
-import pyarrow.parquet.encryption as pe
-from pyarrow.tests.parquet.encryption import (
-    InMemoryKmsClient, verify_file_encrypted)
+try:
+    import pyarrow.parquet as pq
+    import pyarrow.parquet.encryption as pe
+except ImportError:
+    pq = None
+    pe = None
+else:
+    from pyarrow.tests.parquet.encryption import (
+        InMemoryKmsClient, verify_file_encrypted)
 
 
 PARQUET_NAME = 'encrypted_table.in_mem.parquet'

@@ -29,7 +29,7 @@ from pyarrow._parquet cimport (ParquetCipher,
 cdef extern from "parquet/encryption/kms_client.h" \
         namespace "parquet::encryption" nogil:
     cdef cppclass CKmsClient" parquet::encryption::KmsClient":
-        c_string WrapKey(const CSecureString& key_bytes,
+        c_string WrapKey(const CSecureString& key,
                          const c_string& master_key_identifier) except +
         CSecureString UnwrapKey(const c_string& wrapped_key,
                            const c_string& master_key_identifier) except +

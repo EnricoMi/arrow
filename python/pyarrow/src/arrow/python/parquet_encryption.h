@@ -57,7 +57,7 @@ namespace encryption {
 /// Python.
 class ARROW_PYTHON_PARQUET_ENCRYPTION_EXPORT PyKmsClientVtable {
  public:
-  std::function<void(PyObject*, const ::arrow::util::SecureString& key_bytes,
+  std::function<void(PyObject*, const ::arrow::util::SecureString& key,
                      const std::string& master_key_identifier, std::string* out)>
       wrap_key;
   std::function<void(PyObject*, const std::string& wrapped_key,

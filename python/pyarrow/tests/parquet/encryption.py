@@ -18,6 +18,7 @@ import base64
 
 import pyarrow.parquet.encryption as pe
 
+
 class InMemoryKmsClient(pe.KmsClient):
     """This is a mock class implementation of KmsClient, built for testing
     only.
