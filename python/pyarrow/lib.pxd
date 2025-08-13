@@ -659,7 +659,7 @@ cdef class SecureString(_Weakrefable):
     cdef inline shared_ptr[CSecureString] unwrap(self)
 
     @staticmethod
-    cdef wrap(const CSecureString securestring)
+    cdef wrap(shared_ptr[CSecureString] securestring)
 
 
 cdef get_input_stream(object source, c_bool use_memory_map,

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
 from Cython.Includes.libc.string cimport memcpy
 from Cython.Includes.libcpp.memory cimport shared_ptr
 from cpython.pycapsule cimport (
@@ -6111,16 +6110,18 @@ cdef class SecureString(_Weakrefable):
     def __init__(self, *, string=None):
         cdef:
             c_string cstr
+            shared_ptr[CSecureString] css
 
         if string is not None:
             print(f"Create SecureString from '{string}'")
             cstr = tobytes(string)
             print(f"cstr: '{cstr}'")
             print(f"cstr.length: '{cstr.length()}'")
-            print(f"new CSecureString: {new CSecureString(cstr.length(), 0)}")
+            print(f"create new CSecureString...")
+            css = shared_ptr[CSecureString](new CSecureString(cstr.length(), 0))
+            print(f"new CSecureString created!")
             self.wrapped = shared_ptr[CSecureString](new CSecureString(cstr.length(), 0))
-            print(f"wrapped: {self.wrapped}")
-            print(f"copy from {cstr.data()} to {self.wrapped.get().as_view().data()} {cstr.length} bytes")
+            print(f"copy from {cstr.data()} to {self.wrapped.get().as_view().data()} {cstr.length()} bytes")
             memcpy(cstr.data(), self.wrapped.get().as_view().data(), cstr.length())
             print("copied")
         else:
@@ -6139,5 +6140,9 @@ cdef class SecureString(_Weakrefable):
         return self
 
     def to_bytes(self) -> bytes:
-        print(f"providing secure bytes: {self.wrapped.get().as_view()}")
-        return self.wrapped.get().as_view()
+        print(f"providing secure bytes...")
+        cdef:
+            cpp_string_view view = self.wrapped.get().as_view()
+        bytes = PyBytes_FromStringAndSizeNative(view.data(), view.size())
+        print(f"providing secure bytes: {PyObject_to_object(bytes)}")
+        return PyObject_to_object(bytes)

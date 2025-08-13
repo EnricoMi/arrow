@@ -303,20 +303,22 @@ cdef class KmsConnectionConfig(_Weakrefable):
 cdef void _cb_wrap_key(
         handler, const CSecureString& key,
         const c_string& master_key_identifier, c_string* out) except *:
+    cdef:
+        shared_ptr[CSecureString] css = shared_ptr[CSecureString](new CSecureString(key))
     mkid_str = frombytes(master_key_identifier)
-    wrapped_key = handler.wrap_key(SecureString.wrap(key), mkid_str)
+    wrapped_key = handler.wrap_key(SecureString.wrap(css), mkid_str)
     out[0] = tobytes(wrapped_key)
 
 
 cdef void _cb_unwrap_key(
         handler, const c_string& wrapped_key,
-        const c_string& master_key_identifier, shared_ptr[CSecureString]* out) except *:
+        const c_string& master_key_identifier, CSecureString* out) except *:
     mkid_str = frombytes(master_key_identifier)
     wk_str = frombytes(wrapped_key)
     key = handler.unwrap_key(wk_str, mkid_str)
     cdef:
-      shared_ptr[CSecureString] css = (<SecureString> key).unwrap()
-    out = &css
+      shared_ptr[CSecureString] ptr = (<SecureString> key).unwrap()
+    out[0] = ptr.get()
 
 
 cdef class KmsClient(_Weakrefable):

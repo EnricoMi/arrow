@@ -3133,6 +3133,7 @@ cdef extern from "arrow/util/iterator.h" namespace "arrow" nogil:
 
 cdef extern from "arrow/util/secure_string.h" namespace "arrow" nogil:
     cdef cppclass CSecureString" arrow::util::SecureString":
+        CSecureString(const CSecureString& s)
         CSecureString(size_t n, char c)
         cpp_string_view as_view()
 
