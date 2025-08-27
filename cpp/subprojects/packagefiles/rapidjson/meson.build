@@ -15,12 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-prefix=@CMAKE_INSTALL_PREFIX@
-includedir=@ARROW_PKG_CONFIG_INCLUDEDIR@
-libdir=@ARROW_PKG_CONFIG_LIBDIR@
+project('rapidjson', 'cpp')
 
-Name: Skyhook
-Description: Skyhook is a plugin for offloading computations into Ceph.
-Version: @SKYHOOK_VERSION@
-Requires: arrow_dataset
-Libs: -L${libdir} -larrow_skyhook
+rapidjson_dep = declare_dependency(include_directories: 'include')
