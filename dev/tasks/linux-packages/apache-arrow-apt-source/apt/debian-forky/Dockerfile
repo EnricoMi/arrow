@@ -14,18 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
-# https://github.com/google/snappy/pull/172
 
-diff --git a/snappy.cc b/snappy.cc
-index d414718..5b0d0d6 100644
---- a/snappy.cc
-+++ b/snappy.cc
-@@ -83,6 +83,7 @@
- #include <string>
- #include <utility>
- #include <vector>
-+#include <functional>
- 
- namespace snappy {
- 
+FROM debian:forky
+
+RUN \
+  echo "debconf debconf/frontend select Noninteractive" | \
+    debconf-set-selections
+
+RUN \
+  echo 'APT::Install-Recommends "false";' > \
+    /etc/apt/apt.conf.d/disable-install-recommends
+
+ARG DEBUG
+
+RUN \
+  quiet=$([ "${DEBUG}" = "yes" ] || echo "-qq") && \
+  apt update ${quiet} && \
+  apt install -y -V ${quiet} \
+    base-files \
+    build-essential \
+    debhelper \
+    devscripts \
+    fakeroot \
+    gnupg \
+    lsb-release && \
+  apt clean

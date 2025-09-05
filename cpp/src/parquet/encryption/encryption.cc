@@ -17,12 +17,11 @@
 
 #include "parquet/encryption/encryption.h"
 
-#include <string.h>
-
 #include <map>
 #include <utility>
 
 #include "arrow/util/logging_internal.h"
+#include "arrow/util/string.h"
 #include "arrow/util/utf8.h"
 #include "parquet/encryption/encryption_internal.h"
 
@@ -44,13 +43,8 @@ void StringKeyIdRetriever::PutKey(std::string key_id, SecureString key) {
   key_map_.insert({std::move(key_id), std::move(key)});
 }
 
-SecureString StringKeyIdRetriever::GetKeyById(const std::string& key_id) {
+SecureString StringKeyIdRetriever::GetKey(const std::string& key_id) {
   return key_map_.at(key_id);
-}
-
-ColumnEncryptionProperties::Builder* ColumnEncryptionProperties::Builder::key(
-    std::string column_key) {
-  return key(SecureString(std::move(column_key)));
 }
 
 ColumnEncryptionProperties::Builder* ColumnEncryptionProperties::Builder::key(
@@ -92,11 +86,6 @@ FileDecryptionProperties::Builder* FileDecryptionProperties::Builder::column_key
 
   column_decryption_properties_ = std::move(column_decryption_properties);
   return this;
-}
-
-FileDecryptionProperties::Builder* FileDecryptionProperties::Builder::footer_key(
-    std::string footer_key) {
-  return this->footer_key(SecureString(std::move(footer_key)));
 }
 
 FileDecryptionProperties::Builder* FileDecryptionProperties::Builder::footer_key(
@@ -278,8 +267,20 @@ FileEncryptionProperties::column_encryption_properties(const std::string& column
     auto builder = std::make_shared<ColumnEncryptionProperties::Builder>(column_path);
     return builder->build();
   }
-  if (encrypted_columns_.find(column_path) != encrypted_columns_.end()) {
-    return encrypted_columns_[column_path];
+  auto it = encrypted_columns_.find(column_path);
+  if (it != encrypted_columns_.end()) {
+    return it->second;
+  }
+
+  // We do not have an exact match of column_path in encrypted_columns_
+  // there might be the root parent field in encrypted_columns_.
+  auto pos = column_path.find('.');
+  if (pos != std::string::npos) {
+    std::string root = column_path.substr(0, pos);
+    it = encrypted_columns_.find(root);
+    if (it != encrypted_columns_.end()) {
+      return it->second;
+    }
   }
 
   return nullptr;
