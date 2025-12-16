@@ -186,32 +186,22 @@ struct SafeLoader {
     return static_cast<ApiTypeRawEnum>(LoadEnumRaw(in));
   }
 
-  template <typename ThriftType, bool IsUnsigned = true>
-  inline static ApiTypeEnum LoadChecked(
-      const typename std::enable_if<IsUnsigned, ThriftType>::type* in) {
-    auto raw_value = LoadRaw(in);
-    if (ARROW_PREDICT_FALSE(raw_value >=
-                            static_cast<ApiTypeRawEnum>(ApiType::UNDEFINED))) {
-      return ApiType::UNDEFINED;
-    }
-    return FromThriftUnsafe(static_cast<ThriftType>(raw_value));
-  }
-
-  template <typename ThriftType, bool IsUnsigned = false>
-  inline static ApiTypeEnum LoadChecked(
-      const typename std::enable_if<!IsUnsigned, ThriftType>::type* in) {
-    auto raw_value = LoadRaw(in);
-    if (ARROW_PREDICT_FALSE(raw_value >=
-                                static_cast<ApiTypeRawEnum>(ApiType::UNDEFINED) ||
-                            raw_value < 0)) {
-      return ApiType::UNDEFINED;
-    }
-    return FromThriftUnsafe(static_cast<ThriftType>(raw_value));
-  }
-
   template <typename ThriftType>
   inline static ApiTypeEnum Load(const ThriftType* in) {
-    return LoadChecked<ThriftType, std::is_unsigned<ApiTypeRawEnum>::value>(in);
+    const auto raw_value = LoadRaw(in);
+    if constexpr (std::is_unsigned_v<ApiTypeRawEnum>) {
+      if (ARROW_PREDICT_FALSE(raw_value >=
+                              static_cast<ApiTypeRawEnum>(ApiType::UNDEFINED))) {
+        return ApiType::UNDEFINED;
+      }
+    } else {
+      if (ARROW_PREDICT_FALSE(raw_value >=
+                                  static_cast<ApiTypeRawEnum>(ApiType::UNDEFINED) ||
+                              raw_value < 0)) {
+        return ApiType::UNDEFINED;
+      }
+    }
+    return FromThriftUnsafe(static_cast<ThriftType>(raw_value));
   }
 };
 
@@ -270,9 +260,15 @@ static inline EncodedStatistics FromThrift(const format::Statistics& stats) {
     // TODO: check if the column_order is TYPE_DEFINED_ORDER.
     if (stats.__isset.max_value) {
       out.set_max(stats.max_value);
+      if (stats.__isset.is_max_value_exact) {
+        out.is_max_value_exact = stats.is_max_value_exact;
+      }
     }
     if (stats.__isset.min_value) {
       out.set_min(stats.min_value);
+      if (stats.__isset.is_min_value_exact) {
+        out.is_min_value_exact = stats.is_min_value_exact;
+      }
     }
   } else if (stats.__isset.max || stats.__isset.min) {
     // TODO: check created_by to see if it is corrupted for some types.
@@ -475,6 +471,9 @@ static inline format::Statistics ToThrift(const EncodedStatistics& stats) {
   format::Statistics statistics;
   if (stats.has_min) {
     statistics.__set_min_value(stats.min());
+    if (stats.is_min_value_exact.has_value()) {
+      statistics.__set_is_min_value_exact(stats.is_min_value_exact.value());
+    }
     // If the order is SIGNED, then the old min value must be set too.
     // This for backward compatibility
     if (stats.is_signed()) {
@@ -483,6 +482,9 @@ static inline format::Statistics ToThrift(const EncodedStatistics& stats) {
   }
   if (stats.has_max) {
     statistics.__set_max_value(stats.max());
+    if (stats.is_max_value_exact.has_value()) {
+      statistics.__set_is_max_value_exact(stats.is_max_value_exact.value());
+    }
     // If the order is SIGNED, then the old max value must be set too.
     // This for backward compatibility
     if (stats.is_signed()) {
